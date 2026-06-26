@@ -22,14 +22,15 @@ export class AuthService {
     private _providerManager: AuthProviderManager
   ) {}
   async canRegister(provider: string) {
-    if (
-      process.env.DISABLE_REGISTRATION !== 'true' ||
-      provider === Provider.GENERIC
-    ) {
+    if (provider === Provider.GENERIC) {
       return true;
     }
 
-    return (await this._organizationService.getCount()) === 0;
+    if (process.env.DISABLE_REGISTRATION === 'true') {
+      return false;
+    }
+
+    return true;
   }
 
   async routeAuth(
