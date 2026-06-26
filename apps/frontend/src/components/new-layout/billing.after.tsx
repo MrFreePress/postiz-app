@@ -23,12 +23,12 @@ export const BillingAfter = () => {
         <h1 className="text-3xl [@media(max-width:1024px)]:text-xl">
           {t(
             'join_10000_entrepreneurs_who_use_postiz',
-            'Join 10,000+ Entrepreneurs Who Use Postiz'
+            'Plan and manage all your social channels'
           )}
           <br />
           {t(
             'to_manage_all_your_social_media_channels',
-            'To Manage All Your Social Media Channels'
+            'with AI-assisted scheduling and publishing'
           )}
         </h1>
         <br />

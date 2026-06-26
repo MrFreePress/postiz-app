@@ -122,7 +122,7 @@ export const FirstBillingComponent = () => {
           {t('billing_who_use', 'who use')}{' '}
           {t(
             'billing_postiz_grow_social',
-            'Postiz To Grow Their Social Presence'
+            'to grow their social presence'
           )}
         </div>
 
@@ -137,7 +137,7 @@ export const FirstBillingComponent = () => {
                 alt="YouTube"
               />
             </div>
-            <div>See the power of Postiz (click here)</div>
+            <div>See the platform walkthrough (click here)</div>
           </div>
         </div>
 
