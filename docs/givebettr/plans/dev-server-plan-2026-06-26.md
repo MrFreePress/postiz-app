@@ -191,7 +191,11 @@ This is a **safe downstream test lane**, not the final production release postur
 - DNS verified: `post-dev.givebettr.com -> 204.168.233.104`
 - Isolated dev runtime is now bootstrapped on the Hetzner host
 - Public HTTPS for `https://post-dev.givebettr.com` is live
-- Current external behavior: `/` redirects to `/auth`, and the page title renders `Register`
+- Current external behavior:
+  - `/` redirects to `/auth`
+  - `/auth` shows `Login instead` (public self-signup closed)
+  - `/auth/login` is live and shows `Registration is currently invite-only.`
+  - auth-surface upstream legal links and testimonial branding were removed from the live dev lane
 - TLS SANs now cover:
   - `givebettr.com`
   - `post.givebettr.com`
@@ -208,9 +212,11 @@ This is a **safe downstream test lane**, not the final production release postur
 
 ## Known follow-up
 - The dev compose is healthy and isolated by container/volume names and ports, but because both live and dev compose directories are named `live`, Docker Compose reports orphan warnings during lifecycle commands. Before repeated operator workflows, normalize this with an explicit compose project name for dev.
+- Latest repo-only follow-up pushed to origin: `94366941` — `Tier 1.5 minimize remaining visible branding`
+- That Tier 1.5 repo pass is build-verified locally but not yet re-deployed to the live dev host.
 
 ## Immediate next actions
-1. Smoke test key downstream flows on `post-dev.givebettr.com`
+1. Run a broader live smoke test across onboarding, OAuth, provider-add, and other visible flows on `post-dev.givebettr.com`
 2. Normalize the dev compose project naming to remove orphan-warning ambiguity
-3. Continue the future Tier 1.5 visible-branding sweep when desired
+3. Decide whether to deploy repo commit `94366941` onto the live dev host for another verification pass
 4. Only after dev validation, reassess production rollout readiness
