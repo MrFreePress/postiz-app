@@ -123,6 +123,11 @@ Derek action:
 
 Verification:
 - `dig +short post-dev.givebettr.com`
+- current verified result on 2026-06-26: `post-dev.givebettr.com -> 204.168.233.104`
+- current live behavior before dev vhost bootstrap:
+  - HTTP redirects to `https://post-dev.givebettr.com/`
+  - HTTPS currently serves the existing static site/default vhost, not a dev app
+  - current certificate SANs cover `givebettr.com` and `post.givebettr.com`, so `post-dev` still needs its own Nginx/TLS setup
 
 ### Phase 2 — downstream deployment identity cleanup
 Before the first dev rollout, fix the downstream delivery path so dev is not still shipping under upstream identity.
