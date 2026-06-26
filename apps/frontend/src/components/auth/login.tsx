@@ -136,11 +136,11 @@ export function Login() {
                     {t('sign_in_1', 'Sign in')}
                   </Button>
                 </div>
-                <p className="mt-4 text-sm">
-                  {t('don_t_have_an_account', "Don't Have An Account?")}&nbsp;
-                  <Link href="/auth" className="underline cursor-pointer">
-                    {t('sign_up', 'Sign Up')}
-                  </Link>
+                <p className="mt-4 text-sm text-[#BFBFBF]">
+                  {t(
+                    'registration_invite_only',
+                    'Registration is currently invite-only.'
+                  )}
                 </p>
                 <p className="mt-4 text-sm">
                   <Link

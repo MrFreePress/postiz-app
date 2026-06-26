@@ -190,6 +190,7 @@ export function RegisterAfter({
                       label="Email"
                       translationKey="label_email"
                       {...form.register('email')}
+                      required
                       type="email"
                       placeholder={t('email_address', 'Email Address')}
                     />
@@ -197,6 +198,7 @@ export function RegisterAfter({
                       label="Password"
                       translationKey="label_password"
                       {...form.register('password')}
+                      required
                       autoComplete="off"
                       type="password"
                       placeholder={t('label_password', 'Password')}
@@ -207,6 +209,7 @@ export function RegisterAfter({
                   label="Company"
                   translationKey="label_company"
                   {...form.register('company')}
+                  required
                   autoComplete="off"
                   type="text"
                   placeholder={t('label_company', 'Company')}
@@ -218,23 +221,11 @@ export function RegisterAfter({
                   'By registering you agree to our'
                 )}
                 &nbsp;
-                <a
-                  href={`https://postiz.com/terms`}
-                  className="underline hover:font-bold"
-                  rel="nofollow"
-                >
-                  {t('terms_of_service', 'Terms of Service')}
-                </a>
+                {t('terms_of_service', 'Terms of Service')}
                 &nbsp;
                 {t('and', 'and')}&nbsp;
-                <a
-                  href={`https://postiz.com/privacy`}
-                  rel="nofollow"
-                  className="underline hover:font-bold"
-                >
-                  {t('privacy_policy', 'Privacy Policy')}
-                </a>
-                &nbsp;
+                {t('privacy_policy', 'Privacy Policy')}
+                .
               </div>
               <div className="text-center mt-6">
                 <div className="w-full flex">

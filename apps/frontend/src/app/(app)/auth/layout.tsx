@@ -3,8 +3,6 @@ import { getT } from '@gitroom/react/translation/get.translation.service.backend
 export const dynamic = 'force-dynamic';
 import { ReactNode } from 'react';
 import loadDynamic from 'next/dynamic';
-import { TestimonialComponent } from '@gitroom/frontend/components/auth/testimonial.component';
-import { LogoTextComponent } from '@gitroom/frontend/components/ui/logo-text.component';
 const ReturnUrlComponent = loadDynamic(() => import('./return.url.component'));
 export default async function AuthLayout({
   children,
@@ -19,7 +17,9 @@ export default async function AuthLayout({
       <ReturnUrlComponent />
       <div className="flex flex-col py-[40px] px-[20px] flex-1 lg:w-[600px] lg:flex-none rounded-[12px] text-white p-[12px] bg-[#1A1919]">
         <div className="w-full max-w-[440px] mx-auto justify-center gap-[20px] h-full flex flex-col text-white">
-          <LogoTextComponent />
+          <div className="text-[28px] font-semibold tracking-[-0.04em] lowercase">
+            givebettr
+          </div>
           <div className="flex">{children}</div>
         </div>
       </div>
@@ -29,7 +29,20 @@ export default async function AuthLayout({
           <br />
           your social presence
         </div>
-        <TestimonialComponent />
+        <div className="mt-[36px] max-w-[850px] grid grid-cols-2 gap-[12px] px-[40px] text-left text-[16px]">
+          <div className="rounded-[16px] border border-white/10 bg-white/5 p-[20px]">
+            Unified publishing across your key social channels.
+          </div>
+          <div className="rounded-[16px] border border-white/10 bg-white/5 p-[20px]">
+            AI-assisted drafting and scheduling workflows.
+          </div>
+          <div className="rounded-[16px] border border-white/10 bg-white/5 p-[20px]">
+            A focused workspace for planning, review, and publishing.
+          </div>
+          <div className="rounded-[16px] border border-white/10 bg-white/5 p-[20px]">
+            Flexible self-hosted deployment for controlled pilot use.
+          </div>
+        </div>
       </div>
     </div>
   );
