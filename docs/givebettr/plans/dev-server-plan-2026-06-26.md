@@ -187,9 +187,30 @@ This is a **safe downstream test lane**, not the final production release postur
 
 ---
 
+## Current live status (2026-06-26)
+- DNS verified: `post-dev.givebettr.com -> 204.168.233.104`
+- Isolated dev runtime is now bootstrapped on the Hetzner host
+- Public HTTPS for `https://post-dev.givebettr.com` is live
+- Current external behavior: `/` redirects to `/auth`, and the page title renders `Register`
+- TLS SANs now cover:
+  - `givebettr.com`
+  - `post.givebettr.com`
+  - `post-dev.givebettr.com`
+- Current dev host paths:
+  - app checkout: `/opt/postiz-dev/app`
+  - runtime compose: `/opt/postiz-dev/live/docker-compose.yaml`
+  - app env: `/opt/postiz-dev/live/postiz-dev.env`
+  - nginx site: `/etc/nginx/sites-available/post-dev`
+- Current dev loopback ports:
+  - app: `127.0.0.1:4017`
+  - Temporal gRPC: `127.0.0.1:7243`
+  - Temporal UI: `127.0.0.1:8081`
+
+## Known follow-up
+- The dev compose is healthy and isolated by container/volume names and ports, but because both live and dev compose directories are named `live`, Docker Compose reports orphan warnings during lifecycle commands. Before repeated operator workflows, normalize this with an explicit compose project name for dev.
+
 ## Immediate next actions
-1. Derek creates DNS record for `post-dev`
-2. Patch downstream deployment identity/release references
-3. Prepare dev compose/env layout on the server
-4. Add Nginx + TLS for `post-dev.givebettr.com`
-5. Deploy and smoke test the fork on dev
+1. Smoke test key downstream flows on `post-dev.givebettr.com`
+2. Normalize the dev compose project naming to remove orphan-warning ambiguity
+3. Continue the future Tier 1.5 visible-branding sweep when desired
+4. Only after dev validation, reassess production rollout readiness
