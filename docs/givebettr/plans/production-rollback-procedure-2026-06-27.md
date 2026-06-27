@@ -36,21 +36,19 @@ Before any production deploy, record all of the following so rollback is possibl
 
 If those are missing, stop and collect them before declaring the deployment process production-ready.
 
-### Verified current production values (2026-06-27 audit)
+### Verified current production values (after 2026-06-27 normalization + redeploy)
 - production hostname: `post.givebettr.com`
 - production runtime path: `/opt/postiz/live`
 - production compose file path: `/opt/postiz/live/docker-compose.yaml`
+- production compose interpolation file: `/opt/postiz/live/.env`
+- production app env file path: `/opt/postiz/live/postiz.env`
 - production app container name: `postiz`
+- current verified live image: `postiz-givebettr-prod:5ce513f6`
 - public proxy target: `127.0.0.1:4007`
 
-### Verified current production exception
-The current live lane is **not yet** using the preferred `.env` + app `env_file` split:
-- there is no `/opt/postiz/live/.env`
-- there is no separate production app env file such as `postiz.env`
-- runtime variables are currently embedded inline in `/opt/postiz/live/docker-compose.yaml`
-- the live app image is currently hardcoded to `ghcr.io/gitroomhq/postiz-app:latest`
-
-Until production is normalized to the canonical downstream pattern, rollback on the live lane is still a compose-file edit/recreate operation rather than a simple `.env` image re-pin.
+### Remaining production nuance
+- The live lane is now using the preferred `.env` + app `env_file` split.
+- The remaining gap is release-source repeatability: the currently verified runtime image is a host-local production tag rather than a GHCR-pulled downstream tag.
 
 ---
 
@@ -83,8 +81,10 @@ POSTIZ_IMAGE=ghcr.io/mrfreepress/postiz-app:<last-known-good-tag>
 EOF
 ```
 
-### Current live-lane fallback before normalization
-Because the current live lane does not yet have `/opt/postiz/live/.env`, an emergency rollback today would require editing `/opt/postiz/live/docker-compose.yaml` directly to point `postiz.image` at the chosen last-known-good image, then recreating the runtime and verifying it. Treat that as a temporary legacy exception to be removed once production is normalized.
+### Current live-lane rollback behavior
+Because the live lane now has `/opt/postiz/live/.env`, normal rollback should use the canonical image re-pin path by changing only `POSTIZ_IMAGE=` in `.env`, then recreating the runtime and verifying it.
+
+A compose-file image edit is now a legacy fallback only for catastrophic recovery if `.env` is missing/corrupted.
 
 ### Step 3 — inspect resolved config before restart
 ```bash
@@ -191,4 +191,4 @@ You can mark rollback readiness substantially complete when:
 - one dry-run or real rollback rehearsal is executed against a safe lane
 - the paired production deploy runbook and this rollback procedure are linked from the production-readiness docs
 
-The remaining open item is the same as the deploy runbook: normalize live production from the current inline/hardcoded upstream image pattern to the canonical downstream env-driven pattern so rollback becomes a simple image re-pin rather than a compose-file edit.
+The remaining open item is now narrower than the deploy runbook originally assumed: the compose shape is normalized, so the remaining gap is moving from the current working host-local production image tag to a repeatable GHCR-backed downstream tagged release path.

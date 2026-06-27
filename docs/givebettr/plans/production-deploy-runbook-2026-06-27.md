@@ -102,17 +102,22 @@ Verify the workflow finished successfully in GitHub Actions before touching the 
 - production app container name: `postiz`
 - public proxy target: `127.0.0.1:4007`
 
-### Verified current exception from the canonical target pattern
-The current live production compose file is **not yet normalized** to the preferred downstream env-driven pattern.
+### Verified current normalized production shape (2026-06-27 deploy)
+The live production compose file is now normalized to the preferred downstream env-driven pattern.
 
-As audited on 2026-06-27:
-- `/opt/postiz/live/docker-compose.yaml` hardcodes the app image as:
-  - `ghcr.io/gitroomhq/postiz-app:latest`
-- there is **no** `/opt/postiz/live/.env`
-- there is **no** separate production app `env_file` such as `postiz.env`
-- the production runtime environment is currently embedded inline under `environment:` in the compose file
+Verified on-host:
+- `/opt/postiz/live/docker-compose.yaml` now uses:
+  - `image: ${POSTIZ_IMAGE:-ghcr.io/mrfreepress/postiz-app:latest}`
+- compose interpolation now comes from:
+  - `/opt/postiz/live/.env`
+- runtime app variables now come from:
+  - `/opt/postiz/live/postiz.env`
+- the live container was redeployed on 2026-06-27 with:
+  - `postiz-givebettr-prod:5ce513f6`
 
-This means the canonical downstream deploy flow below is the **target production shape** and still requires a one-time production-lane normalization before the first audited downstream tagged release.
+Important nuance:
+- the current live runtime is normalized to the canonical *shape*, but the deployed image is still a host-local image tag rather than a GHCR-pulled downstream tag
+- this was acceptable for the immediate production update because commits after `5ce513f6` on `main` were documentation-only and did not change application code
 
 ### Canonical compose rule
 The production compose file should stay env-driven:
@@ -126,13 +131,15 @@ Use the same split now proven on the dev lane:
 - `.env` = **Compose interpolation** values, including `POSTIZ_IMAGE=`
 - app env file (for example `postiz.env`) = **runtime container environment** loaded via `env_file:`
 
-### One-time production normalization required before first downstream release
-Before using the canonical image-rotation procedure in production, first convert the live lane from the current inline/hardcoded shape to the canonical split:
-- keep runtime at `/opt/postiz/live`
-- keep compose file at `/opt/postiz/live/docker-compose.yaml`
-- move image selection to `/opt/postiz/live/.env`
-- move runtime app variables out of inline `environment:` into a dedicated production env file
-- preserve the live container identity `postiz` unless there is a deliberate migration reason to rename it
+### One-time production normalization status
+This normalization step is now complete on the live lane:
+- runtime remains `/opt/postiz/live`
+- compose file remains `/opt/postiz/live/docker-compose.yaml`
+- image selection now lives in `/opt/postiz/live/.env`
+- runtime app variables now live in `/opt/postiz/live/postiz.env`
+- container identity remains `postiz`
+
+Future production deploys should preserve this split and rotate only `POSTIZ_IMAGE=` for normal image changes.
 
 ### Host update sequence
 1. SSH to the host
@@ -187,16 +194,19 @@ Run the minimum route checks for the candidate.
 - [ ] `https://post.givebettr.com/privacy`
 - [ ] registration policy behavior matches intended posture
 
-#### Current observed baseline before downstream cutover
-As of the 2026-06-27 audit, these public routes were reachable and returned HTTP 200, but titles/copy still reflected the upstream Postiz live lane:
-- `/` → `Postiz Register`
-- `/auth` → `Postiz Register`
-- `/auth/login` → `Postiz Login`
-- `/auth/forgot` → `Postiz Forgot Password`
-- `/terms` → `Postiz Register`
-- `/privacy` → `Postiz Register`
+#### Current observed baseline after the 2026-06-27 production update
+As of the verified redeploy to `postiz-givebettr-prod:5ce513f6`, these public routes were reachable and returned HTTP 200 with downstream-facing auth copy:
+- `/` → `Access`
+- `/auth` → `Access`
+- `/auth/login` → `Log in`
+- `/auth/forgot` → `Forgot password`
+- `/terms` → `Access`
+- `/privacy` → `Access`
 
-Use that as the pre-cutover baseline, not as the desired downstream acceptance state.
+Observed posture notes:
+- unauthenticated `/auth` still shows public signup because live production currently has `DISABLE_REGISTRATION=false`
+- `/auth/login` shows invite-only copy and renders the refreshed downstream branding/copy
+- unauthenticated `/provider/add` now redirects to `/auth/login-required` rather than throwing the earlier client-side exception
 
 ### Evidence to record
 For each production deploy, capture at least:
@@ -229,11 +239,13 @@ If host paths, compose layout, or env split differ from this runbook, update the
 - production hostname: `post.givebettr.com`
 - production runtime directory: `/opt/postiz/live`
 - production compose file path: `/opt/postiz/live/docker-compose.yaml`
-- production app env filename: **none yet on the current live lane**; runtime variables are still inline in compose and should be migrated to a dedicated production env file during normalization
+- production compose interpolation file: `/opt/postiz/live/.env`
+- production app env filename: `/opt/postiz/live/postiz.env`
 - production container name: `postiz`
-- production smoke pack final scope: `/`, `/auth`, `/auth/login`, `/auth/forgot`, `/terms`, `/privacy`, plus registration-policy verification
+- current verified live image after the 2026-06-27 update: `postiz-givebettr-prod:5ce513f6`
+- production smoke pack final scope: `/`, `/auth`, `/auth/login`, `/auth/forgot`, `/terms`, `/privacy`, plus registration-policy verification and unauthenticated `/provider/add`
 
-The remaining open item is **normalizing the current live production lane to the canonical downstream env-driven shape** before the first audited tagged Givebettr production release.
+The remaining open item is no longer compose normalization; it is moving from the currently working host-local production image tag to a repeatable GHCR-backed downstream tagged release path when the image-publish lane is exercised end-to-end.
 
 ---
 

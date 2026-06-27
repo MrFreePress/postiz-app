@@ -4,7 +4,7 @@
 > Purpose: first-pass P0 audit of the downstream shipping path before any production launch claim.
 
 ## Executive summary
-The downstream fork is **closer** to a coherent release identity than it was earlier, but production deployment is **not yet fully formalized**.
+The downstream fork is now materially closer to a coherent production release story: the live production lane has been normalized to the canonical `.env` + app `env_file` shape and redeployed onto the current application code baseline. The remaining gap is making the image source fully repeatable through an exercised downstream GHCR-tag workflow rather than the currently working host-local production tag.
 
 ### What is already good
 - The downstream GitHub fork is authoritative for current work:
@@ -13,18 +13,18 @@ The downstream fork is **closer** to a coherent release identity than it was ear
   - `ghcr.io/mrfreepress/postiz-app:latest`
 - The container build workflow derives the GHCR repo from `github.repository_owner`, so tags pushed from Derek's fork publish to the downstream namespace automatically.
 - The current dev lane is running a locally built host image (`postiz-givebettr-dev:5ce513f6`) and no longer depends on the stale hardcoded compose image tag pattern.
+- The live production lane is now normalized on-host to the canonical split:
+  - compose interpolation: `/opt/postiz/live/.env`
+  - app runtime env: `/opt/postiz/live/postiz.env`
+  - current verified live image: `postiz-givebettr-prod:5ce513f6`
 - Canonical downstream deploy and rollback runbooks now exist:
   - `docs/givebettr/plans/production-deploy-runbook-2026-06-27.md`
   - `docs/givebettr/plans/production-rollback-procedure-2026-06-27.md`
 
 ### What is still missing for production readiness
-- The current live production runtime at `/opt/postiz/live/docker-compose.yaml` still hardcodes the upstream app image:
-  - `ghcr.io/gitroomhq/postiz-app:latest`
-- The live production lane is not yet normalized to the canonical downstream env-driven deploy shape:
-  - there is no `/opt/postiz/live/.env`
-  - there is no dedicated production app `env_file`
-  - runtime variables are still inline in compose
-- The production shipping path is still split between the newly written runbooks and a legacy live host shape that does not yet match them.
+- The current live production image is working and downstream-coded, but it is still a host-local tag:
+  - `postiz-givebettr-prod:5ce513f6`
+- The next release-path gap is proving the GHCR-backed downstream publish lane end-to-end so normal production updates can use a registry-pulled audited tag instead of relying on a host-local image.
 - Local helper scripts under `var/docker/` still describe localhost/devcontainer behavior only and are not a production operator story.
 - Some repo docs still contain upstream/non-downstream references, but they are not currently the canonical shipping path.
 
@@ -89,31 +89,28 @@ The downstream fork is **closer** to a coherent release identity than it was ear
 
 ### P0: Release identity and deployment path
 - **Production deployment artifacts reference downstream identity only**
-  - **Partial / mostly yes**
-  - Repo defaults for shipping now point downstream, but the full production path is not yet consolidated.
+  - **Mostly yes, with one remaining runtime caveat**
+  - Repo defaults and live compose shape now point downstream, but the current verified production image is still a host-local tag rather than a GHCR-pulled downstream tag.
 
 - **No required production operator step depends on upstream image namespaces or upstream repo ownership**
-  - **Not yet proven**
-  - Likely true for the current repo defaults, but this still needs a formal operator runbook.
+  - **Now mostly yes**
+  - The live compose no longer depends on upstream image namespaces; the remaining work is proving the downstream GHCR publish lane as the normal source of release images.
 
 - **Canonical deploy path is documented end-to-end**
-  - **Yes, at the process level**
-  - Deploy and rollback runbooks now exist, but the live production lane still needs normalization to match them exactly.
+  - **Yes, and now matched by the live compose shape**
+  - Deploy and rollback runbooks exist and the live production lane now uses the documented `.env` + `postiz.env` split.
 
 - **Rollback path is documented and tested**
-  - **Documented yes, tested no**
+  - **Documented yes, partially exercised**
 
 - **Release candidate commit/tag selection process is explicit**
   - **Yes**
 
 ## Recommended next P0 actions
-1. Normalize the live production lane at `/opt/postiz/live` to the canonical downstream env-driven shape:
-   - move image selection to `/opt/postiz/live/.env`
-   - move runtime variables to a dedicated production app env file
-   - replace the hardcoded upstream image reference with downstream `POSTIZ_IMAGE`
-2. Rehearse the normalized production update/rollback flow on a safe lane or maintenance window.
-3. Capture one verified tagged downstream image deploy using the new runbook.
-4. Link any resulting host-specific worksheet updates back into the production-readiness docs.
+1. Exercise the downstream GHCR publish lane end-to-end and verify a registry-backed production image can replace the current host-local production tag.
+2. Capture one verified tagged downstream image deploy using the normalized `/opt/postiz/live` runbook path.
+3. Rehearse rollback by changing only `POSTIZ_IMAGE=` in `/opt/postiz/live/.env` on a safe lane or maintenance window.
+4. Link any resulting registry-backed release worksheet updates back into the production-readiness docs.
 
 ## Bottom line
-The downstream fork is no longer obviously blocked by downstream image identity or missing process documentation. The remaining blocker is that the **live production host still runs a legacy upstream/hardcoded compose shape**. P0 for deployment path is now mostly documentation-complete, but not execution-complete until the live lane is normalized and one tagged downstream release is actually rehearsed or deployed with verification.
+The downstream fork is no longer blocked by upstream image identity on the live host, and the production compose shape is now normalized to the documented downstream pattern. P0 for deployment path is materially further along: the live lane has been updated and verified, but execution-complete release hardening still requires one fully exercised GHCR-backed tagged downstream release so the image source becomes as repeatable as the now-canonical host layout.
