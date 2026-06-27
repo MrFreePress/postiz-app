@@ -245,7 +245,13 @@ If host paths, compose layout, or env split differ from this runbook, update the
 - current verified live image after the 2026-06-27 update: `postiz-givebettr-prod:5ce513f6`
 - production smoke pack final scope: `/`, `/auth`, `/auth/login`, `/auth/forgot`, `/terms`, `/privacy`, plus registration-policy verification and unauthenticated `/provider/add`
 
-The remaining open item is no longer compose normalization; it is moving from the currently working host-local production image tag to a repeatable GHCR-backed downstream tagged release path when the image-publish lane is exercised end-to-end.
+GHCR release-path note:
+- the downstream GitHub Actions publish lane was successfully exercised for tag `givebettr-prod-2026-06-27-fa1741d7`
+- the pushed GHCR image `ghcr.io/mrfreepress/postiz-app:givebettr-prod-2026-06-27-fa1741d7` built and published successfully
+- however, promoting that image onto live production caused public `/` and `/auth` to return HTTP 500 while frontend logs showed `ECONNREFUSED 127.0.0.1:3000`
+- production was rolled back immediately to the verified host-local image `postiz-givebettr-prod:5ce513f6`
+
+The remaining open item is now narrower than simple GHCR publishing: diagnose why the successfully published GHCR image fails on the live host before using registry-backed images as the normal production source.
 
 ---
 
