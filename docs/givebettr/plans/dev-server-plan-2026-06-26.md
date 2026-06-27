@@ -212,11 +212,13 @@ This is a **safe downstream test lane**, not the final production release postur
 
 ## Known follow-up
 - The dev compose is healthy and isolated by container/volume names and ports, but because both live and dev compose directories are named `live`, Docker Compose reports orphan warnings during lifecycle commands. Before repeated operator workflows, normalize this with an explicit compose project name for dev.
+- The dev host previously drifted into a hardcoded app image line inside `/opt/postiz-dev/live/docker-compose.yaml`, which caused successful image builds to leave the runtime stuck on an older tag. The durable operator fix is: keep the compose file on `image: ${POSTIZ_IMAGE:-postiz-givebettr-dev:latest}` and change only `POSTIZ_IMAGE=` in `postiz-dev.env` during deploys.
 - Latest repo-only follow-up pushed to origin: `94366941` — `Tier 1.5 minimize remaining visible branding`
 - That Tier 1.5 repo pass is build-verified locally but not yet re-deployed to the live dev host.
 
 ## Immediate next actions
 1. Run a broader live smoke test across onboarding, OAuth, provider-add, and other visible flows on `post-dev.givebettr.com`
 2. Normalize the dev compose project naming to remove orphan-warning ambiguity
-3. Decide whether to deploy repo commit `94366941` onto the live dev host for another verification pass
-4. Only after dev validation, reassess production rollout readiness
+3. Keep deploys env-driven by updating only `POSTIZ_IMAGE` in `postiz-dev.env`; avoid hand-editing the compose image line again
+4. Decide whether to deploy repo commit `94366941` onto the live dev host for another verification pass
+5. Only after dev validation, reassess production rollout readiness
