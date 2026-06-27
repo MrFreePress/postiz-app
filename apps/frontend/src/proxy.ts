@@ -46,9 +46,15 @@ export async function proxy(request: NextRequest) {
   if (
     nextUrl.pathname.startsWith('/uploads/') ||
     nextUrl.pathname.startsWith('/p/') ||
-    nextUrl.pathname.startsWith('/provider/') ||
     nextUrl.pathname.startsWith('/icons/')
   ) {
+    return topResponse;
+  }
+
+  if (nextUrl.pathname.startsWith('/provider/')) {
+    if (!authCookie) {
+      return NextResponse.redirect(new URL('/auth/login-required', nextUrl.href));
+    }
     return topResponse;
   }
 
