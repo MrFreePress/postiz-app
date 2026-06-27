@@ -13,15 +13,18 @@ The downstream fork is **closer** to a coherent release identity than it was ear
   - `ghcr.io/mrfreepress/postiz-app:latest`
 - The container build workflow derives the GHCR repo from `github.repository_owner`, so tags pushed from Derek's fork publish to the downstream namespace automatically.
 - The current dev lane is running a locally built host image (`postiz-givebettr-dev:5ce513f6`) and no longer depends on the stale hardcoded compose image tag pattern.
+- Canonical downstream deploy and rollback runbooks now exist:
+  - `docs/givebettr/plans/production-deploy-runbook-2026-06-27.md`
+  - `docs/givebettr/plans/production-rollback-procedure-2026-06-27.md`
 
 ### What is still missing for production readiness
-- There is not yet one canonical production deploy runbook covering:
-  - release candidate selection
-  - build/publish path
-  - server update path
-  - on-host verification
-  - rollback
-- The production shipping path is still split across repo defaults, host-specific operator knowledge, and ad hoc session continuity.
+- The current live production runtime at `/opt/postiz/live/docker-compose.yaml` still hardcodes the upstream app image:
+  - `ghcr.io/gitroomhq/postiz-app:latest`
+- The live production lane is not yet normalized to the canonical downstream env-driven deploy shape:
+  - there is no `/opt/postiz/live/.env`
+  - there is no dedicated production app `env_file`
+  - runtime variables are still inline in compose
+- The production shipping path is still split between the newly written runbooks and a legacy live host shape that does not yet match them.
 - Local helper scripts under `var/docker/` still describe localhost/devcontainer behavior only and are not a production operator story.
 - Some repo docs still contain upstream/non-downstream references, but they are not currently the canonical shipping path.
 
@@ -94,24 +97,23 @@ The downstream fork is **closer** to a coherent release identity than it was ear
   - Likely true for the current repo defaults, but this still needs a formal operator runbook.
 
 - **Canonical deploy path is documented end-to-end**
-  - **No**
+  - **Yes, at the process level**
+  - Deploy and rollback runbooks now exist, but the live production lane still needs normalization to match them exactly.
 
 - **Rollback path is documented and tested**
-  - **No**
+  - **Documented yes, tested no**
 
 - **Release candidate commit/tag selection process is explicit**
-  - **No**
+  - **Yes**
 
 ## Recommended next P0 actions
-1. Write the canonical deploy runbook for downstream production.
-2. Define release candidate selection rules:
-   - branch/tag source
-   - image naming/tagging convention
-   - verification steps after deploy
-3. Add a rollback section that includes:
-   - image re-pin/redeploy
-   - post-rollback smoke checks
-4. Link the final runbook from the production-readiness checklist and execution plan.
+1. Normalize the live production lane at `/opt/postiz/live` to the canonical downstream env-driven shape:
+   - move image selection to `/opt/postiz/live/.env`
+   - move runtime variables to a dedicated production app env file
+   - replace the hardcoded upstream image reference with downstream `POSTIZ_IMAGE`
+2. Rehearse the normalized production update/rollback flow on a safe lane or maintenance window.
+3. Capture one verified tagged downstream image deploy using the new runbook.
+4. Link any resulting host-specific worksheet updates back into the production-readiness docs.
 
 ## Bottom line
-The downstream fork is no longer obviously blocked by upstream image identity in the repo defaults, which is a real improvement. But the **production deploy path is still not explicit enough to call this P0 area complete**. The next concrete blocker to clear is the canonical production deploy/rollback runbook.
+The downstream fork is no longer obviously blocked by downstream image identity or missing process documentation. The remaining blocker is that the **live production host still runs a legacy upstream/hardcoded compose shape**. P0 for deployment path is now mostly documentation-complete, but not execution-complete until the live lane is normalized and one tagged downstream release is actually rehearsed or deployed with verification.

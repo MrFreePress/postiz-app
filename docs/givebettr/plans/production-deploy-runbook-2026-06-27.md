@@ -95,7 +95,24 @@ Verify the workflow finished successfully in GitHub Actions before touching the 
 
 ## 4. Host update path
 
-> This section describes the intended production pattern. Replace placeholder production paths/hostnames only when the final production lane is chosen.
+### Verified current live production lane (2026-06-27 audit)
+- production hostname: `post.givebettr.com`
+- production runtime directory: `/opt/postiz/live`
+- production compose file path: `/opt/postiz/live/docker-compose.yaml`
+- production app container name: `postiz`
+- public proxy target: `127.0.0.1:4007`
+
+### Verified current exception from the canonical target pattern
+The current live production compose file is **not yet normalized** to the preferred downstream env-driven pattern.
+
+As audited on 2026-06-27:
+- `/opt/postiz/live/docker-compose.yaml` hardcodes the app image as:
+  - `ghcr.io/gitroomhq/postiz-app:latest`
+- there is **no** `/opt/postiz/live/.env`
+- there is **no** separate production app `env_file` such as `postiz.env`
+- the production runtime environment is currently embedded inline under `environment:` in the compose file
+
+This means the canonical downstream deploy flow below is the **target production shape** and still requires a one-time production-lane normalization before the first audited downstream tagged release.
 
 ### Canonical compose rule
 The production compose file should stay env-driven:
@@ -108,6 +125,14 @@ image: ${POSTIZ_IMAGE:-ghcr.io/mrfreepress/postiz-app:latest}
 Use the same split now proven on the dev lane:
 - `.env` = **Compose interpolation** values, including `POSTIZ_IMAGE=`
 - app env file (for example `postiz.env`) = **runtime container environment** loaded via `env_file:`
+
+### One-time production normalization required before first downstream release
+Before using the canonical image-rotation procedure in production, first convert the live lane from the current inline/hardcoded shape to the canonical split:
+- keep runtime at `/opt/postiz/live`
+- keep compose file at `/opt/postiz/live/docker-compose.yaml`
+- move image selection to `/opt/postiz/live/.env`
+- move runtime app variables out of inline `environment:` into a dedicated production env file
+- preserve the live container identity `postiz` unless there is a deliberate migration reason to rename it
 
 ### Host update sequence
 1. SSH to the host
@@ -151,13 +176,27 @@ After `docker compose up -d`, prove all of the following:
 - [ ] recent logs show no hard startup failure
 
 ### Public verification
-Run the minimum route checks for the candidate:
-- [ ] `/`
-- [ ] `/auth`
-- [ ] `/auth/login`
-- [ ] `/auth/forgot`
-- [ ] registration policy behavior
-- [ ] one approved provider or operator-critical path as appropriate
+Run the minimum route checks for the candidate.
+
+#### Final baseline public smoke pack for the current production lane
+- [ ] `https://post.givebettr.com/`
+- [ ] `https://post.givebettr.com/auth`
+- [ ] `https://post.givebettr.com/auth/login`
+- [ ] `https://post.givebettr.com/auth/forgot`
+- [ ] `https://post.givebettr.com/terms`
+- [ ] `https://post.givebettr.com/privacy`
+- [ ] registration policy behavior matches intended posture
+
+#### Current observed baseline before downstream cutover
+As of the 2026-06-27 audit, these public routes were reachable and returned HTTP 200, but titles/copy still reflected the upstream Postiz live lane:
+- `/` → `Postiz Register`
+- `/auth` → `Postiz Register`
+- `/auth/login` → `Postiz Login`
+- `/auth/forgot` → `Postiz Forgot Password`
+- `/terms` → `Postiz Register`
+- `/privacy` → `Postiz Register`
+
+Use that as the pre-cutover baseline, not as the desired downstream acceptance state.
 
 ### Evidence to record
 For each production deploy, capture at least:
@@ -186,16 +225,15 @@ If host paths, compose layout, or env split differ from this runbook, update the
 
 ---
 
-## 7. Open items still needed to finalize this runbook
-This runbook still needs the final production-specific values filled in:
-- production hostname
-- production runtime directory
-- production compose file path
-- production app env filename
-- production container name
-- production smoke pack final scope
+## 7. Production-specific values now verified
+- production hostname: `post.givebettr.com`
+- production runtime directory: `/opt/postiz/live`
+- production compose file path: `/opt/postiz/live/docker-compose.yaml`
+- production app env filename: **none yet on the current live lane**; runtime variables are still inline in compose and should be migrated to a dedicated production env file during normalization
+- production container name: `postiz`
+- production smoke pack final scope: `/`, `/auth`, `/auth/login`, `/auth/forgot`, `/terms`, `/privacy`, plus registration-policy verification
 
-Until those are filled in, this runbook is the **canonical process shape**, but not the final production-instance worksheet.
+The remaining open item is **normalizing the current live production lane to the canonical downstream env-driven shape** before the first audited tagged Givebettr production release.
 
 ---
 

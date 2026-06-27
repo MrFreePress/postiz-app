@@ -36,6 +36,22 @@ Before any production deploy, record all of the following so rollback is possibl
 
 If those are missing, stop and collect them before declaring the deployment process production-ready.
 
+### Verified current production values (2026-06-27 audit)
+- production hostname: `post.givebettr.com`
+- production runtime path: `/opt/postiz/live`
+- production compose file path: `/opt/postiz/live/docker-compose.yaml`
+- production app container name: `postiz`
+- public proxy target: `127.0.0.1:4007`
+
+### Verified current production exception
+The current live lane is **not yet** using the preferred `.env` + app `env_file` split:
+- there is no `/opt/postiz/live/.env`
+- there is no separate production app env file such as `postiz.env`
+- runtime variables are currently embedded inline in `/opt/postiz/live/docker-compose.yaml`
+- the live app image is currently hardcoded to `ghcr.io/gitroomhq/postiz-app:latest`
+
+Until production is normalized to the canonical downstream pattern, rollback on the live lane is still a compose-file edit/recreate operation rather than a simple `.env` image re-pin.
+
 ---
 
 ## 3. Canonical rollback target
@@ -66,6 +82,9 @@ cat > .env <<'EOF'
 POSTIZ_IMAGE=ghcr.io/mrfreepress/postiz-app:<last-known-good-tag>
 EOF
 ```
+
+### Current live-lane fallback before normalization
+Because the current live lane does not yet have `/opt/postiz/live/.env`, an emergency rollback today would require editing `/opt/postiz/live/docker-compose.yaml` directly to point `postiz.image` at the chosen last-known-good image, then recreating the runtime and verifying it. Treat that as a temporary legacy exception to be removed once production is normalized.
 
 ### Step 3 — inspect resolved config before restart
 ```bash
@@ -98,12 +117,13 @@ Check for hard startup or runtime failures.
 
 ### Step 7 — run the minimum public rollback smoke pack
 At minimum:
-- `/`
-- `/auth`
-- `/auth/login`
-- `/auth/forgot`
+- `https://post.givebettr.com/`
+- `https://post.givebettr.com/auth`
+- `https://post.givebettr.com/auth/login`
+- `https://post.givebettr.com/auth/forgot`
+- `https://post.givebettr.com/terms`
+- `https://post.givebettr.com/privacy`
 - registration policy route behavior
-- one previously known-good provider or operator-critical route
 
 ### Step 8 — declare rollback outcome
 A rollback is complete only if:
@@ -170,3 +190,5 @@ You can mark rollback readiness substantially complete when:
 - production-specific paths/container names are filled in
 - one dry-run or real rollback rehearsal is executed against a safe lane
 - the paired production deploy runbook and this rollback procedure are linked from the production-readiness docs
+
+The remaining open item is the same as the deploy runbook: normalize live production from the current inline/hardcoded upstream image pattern to the canonical downstream env-driven pattern so rollback becomes a simple image re-pin rather than a compose-file edit.
