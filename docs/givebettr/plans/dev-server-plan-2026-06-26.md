@@ -203,6 +203,7 @@ This is a **safe downstream test lane**, not the final production release postur
 - Current dev host paths:
   - app checkout: `/opt/postiz-dev/app`
   - runtime compose: `/opt/postiz-dev/live/docker-compose.yaml`
+  - compose interpolation env: `/opt/postiz-dev/live/.env`
   - app env: `/opt/postiz-dev/live/postiz-dev.env`
   - nginx site: `/etc/nginx/sites-available/post-dev`
 - Current dev loopback ports:
@@ -213,12 +214,16 @@ This is a **safe downstream test lane**, not the final production release postur
 ## Known follow-up
 - The dev compose is healthy and isolated by container/volume names and ports, but because both live and dev compose directories are named `live`, Docker Compose reports orphan warnings during lifecycle commands. Before repeated operator workflows, normalize this with an explicit compose project name for dev.
 - The dev host previously drifted into a hardcoded app image line inside `/opt/postiz-dev/live/docker-compose.yaml`, which caused successful image builds to leave the runtime stuck on an older tag. The durable operator fix is: keep the compose file on `image: ${POSTIZ_IMAGE:-postiz-givebettr-dev:latest}` and change only `POSTIZ_IMAGE=` in `postiz-dev.env` during deploys.
+- Post-dev now uses a two-file env split that operators must preserve:
+  - `/opt/postiz-dev/live/.env` supplies **compose interpolation** values like `POSTIZ_IMAGE=`
+  - `/opt/postiz-dev/live/postiz-dev.env` supplies the **application runtime env** loaded via `env_file:`
+  - changing the image tag in `postiz-dev.env` alone is not enough for Compose to switch images
 - Latest repo-only follow-up pushed to origin: `94366941` — `Tier 1.5 minimize remaining visible branding`
 - That Tier 1.5 repo pass is build-verified locally but not yet re-deployed to the live dev host.
 
 ## Immediate next actions
 1. Run a broader live smoke test across onboarding, OAuth, provider-add, and other visible flows on `post-dev.givebettr.com`
 2. Normalize the dev compose project naming to remove orphan-warning ambiguity
-3. Keep deploys env-driven by updating only `POSTIZ_IMAGE` in `postiz-dev.env`; avoid hand-editing the compose image line again
+3. Keep deploys env-driven by updating `POSTIZ_IMAGE` in `/opt/postiz-dev/live/.env`; avoid hand-editing the compose image line again
 4. Decide whether to deploy repo commit `94366941` onto the live dev host for another verification pass
 5. Only after dev validation, reassess production rollout readiness
