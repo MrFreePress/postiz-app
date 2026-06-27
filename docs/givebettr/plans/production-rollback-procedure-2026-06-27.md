@@ -36,19 +36,20 @@ Before any production deploy, record all of the following so rollback is possibl
 
 If those are missing, stop and collect them before declaring the deployment process production-ready.
 
-### Verified current production values (after 2026-06-27 normalization + redeploy)
+### Verified current production values (after 2026-06-27 normalization + GHCR-backed redeploy)
 - production hostname: `post.givebettr.com`
 - production runtime path: `/opt/postiz/live`
 - production compose file path: `/opt/postiz/live/docker-compose.yaml`
 - production compose interpolation file: `/opt/postiz/live/.env`
 - production app env file path: `/opt/postiz/live/postiz.env`
 - production app container name: `postiz`
-- current verified live image: `postiz-givebettr-prod:5ce513f6`
+- current verified live image: `ghcr.io/mrfreepress/postiz-app:givebettr-prod-2026-06-27-fa1741d7`
 - public proxy target: `127.0.0.1:4007`
 
 ### Remaining production nuance
 - The live lane is now using the preferred `.env` + app `env_file` split.
-- The remaining gap is release-source repeatability: the currently verified runtime image is a host-local production tag rather than a GHCR-pulled downstream tag.
+- The live lane is also now on a registry-backed downstream tag: `ghcr.io/mrfreepress/postiz-app:givebettr-prod-2026-06-27-fa1741d7`.
+- The important rollback/deploy nuance is startup warmup: early `/` or `/auth` failures during the first ~30 seconds can be transient while backend boot finishes, so verification should wait ~45 seconds before final judgment.
 
 ---
 

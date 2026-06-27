@@ -22,12 +22,12 @@ The downstream fork is now materially closer to a coherent production release st
   - `docs/givebettr/plans/production-rollback-procedure-2026-06-27.md`
 
 ### What is still missing for production readiness
-- The current live production image is working and downstream-coded, but it is still a host-local tag:
-  - `postiz-givebettr-prod:5ce513f6`
-- The GHCR-backed downstream publish lane has now been exercised successfully, but the published image still failed when promoted to live production:
-  - published tag: `ghcr.io/mrfreepress/postiz-app:givebettr-prod-2026-06-27-fa1741d7`
-  - observed live failure after cutover: public `/` and `/auth` returned HTTP 500 with frontend logs showing `ECONNREFUSED 127.0.0.1:3000`
-- The next release-path gap is therefore runtime validity of the published GHCR image on the production host, not package publication alone.
+- Live production is now running the registry-backed downstream image:
+  - `ghcr.io/mrfreepress/postiz-app:givebettr-prod-2026-06-27-fa1741d7`
+- The important operator nuance discovered during cutover is startup timing, not image invalidity:
+  - early checks saw transient `502`/`500` responses while frontend was up before backend finished booting
+  - isolated timed repro showed `/auth` becoming healthy at roughly the 30-second mark
+  - deploy/rollback runbooks should therefore treat the first ~45 seconds as warmup, not as final release verdict
 - Local helper scripts under `var/docker/` still describe localhost/devcontainer behavior only and are not a production operator story.
 - Some repo docs still contain upstream/non-downstream references, but they are not currently the canonical shipping path.
 

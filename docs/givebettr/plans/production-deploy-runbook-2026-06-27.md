@@ -113,11 +113,12 @@ Verified on-host:
 - runtime app variables now come from:
   - `/opt/postiz/live/postiz.env`
 - the live container was redeployed on 2026-06-27 with:
-  - `postiz-givebettr-prod:5ce513f6`
+  - `ghcr.io/mrfreepress/postiz-app:givebettr-prod-2026-06-27-fa1741d7`
 
 Important nuance:
-- the current live runtime is normalized to the canonical *shape*, but the deployed image is still a host-local image tag rather than a GHCR-pulled downstream tag
-- this was acceptable for the immediate production update because commits after `5ce513f6` on `main` were documentation-only and did not change application code
+- the current live runtime is normalized to the canonical *shape* and now also uses a registry-backed downstream image tag
+- the key operational lesson from the first GHCR cutover is startup warmup: early checks can show transient `502`/`500` responses before backend boot completes
+- in isolated timed repro, `/auth` became healthy at roughly the 30-second mark, so future production smoke checks should wait ~45 seconds before declaring the release bad
 
 ### Canonical compose rule
 The production compose file should stay env-driven:
@@ -195,7 +196,7 @@ Run the minimum route checks for the candidate.
 - [ ] registration policy behavior matches intended posture
 
 #### Current observed baseline after the 2026-06-27 production update
-As of the verified redeploy to `postiz-givebettr-prod:5ce513f6`, these public routes were reachable and returned HTTP 200 with downstream-facing auth copy:
+As of the verified redeploy to `ghcr.io/mrfreepress/postiz-app:givebettr-prod-2026-06-27-fa1741d7`, these public routes were reachable and returned HTTP 200 with downstream-facing auth copy:
 - `/` → `Access`
 - `/auth` → `Access`
 - `/auth/login` → `Log in`
@@ -242,16 +243,17 @@ If host paths, compose layout, or env split differ from this runbook, update the
 - production compose interpolation file: `/opt/postiz/live/.env`
 - production app env filename: `/opt/postiz/live/postiz.env`
 - production container name: `postiz`
-- current verified live image after the 2026-06-27 update: `postiz-givebettr-prod:5ce513f6`
+- current verified live image after the 2026-06-27 update: `ghcr.io/mrfreepress/postiz-app:givebettr-prod-2026-06-27-fa1741d7`
 - production smoke pack final scope: `/`, `/auth`, `/auth/login`, `/auth/forgot`, `/terms`, `/privacy`, plus registration-policy verification and unauthenticated `/provider/add`
 
 GHCR release-path note:
 - the downstream GitHub Actions publish lane was successfully exercised for tag `givebettr-prod-2026-06-27-fa1741d7`
 - the pushed GHCR image `ghcr.io/mrfreepress/postiz-app:givebettr-prod-2026-06-27-fa1741d7` built and published successfully
-- however, promoting that image onto live production caused public `/` and `/auth` to return HTTP 500 while frontend logs showed `ECONNREFUSED 127.0.0.1:3000`
-- production was rolled back immediately to the verified host-local image `postiz-givebettr-prod:5ce513f6`
+- first live cutover checks were too early and saw transient startup failures (`502` at ~10s, `500` at ~20s, frontend logging `ECONNREFUSED 127.0.0.1:3000` while backend was still starting)
+- isolated timed repro confirmed the image becomes healthy and `/auth` returns HTTP 200 at roughly the 30-second mark
+- production was then redeployed to the GHCR image, waited through the warmup window, and re-verified healthy with the public smoke pack passing
 
-The remaining open item is now narrower than simple GHCR publishing: diagnose why the successfully published GHCR image fails on the live host before using registry-backed images as the normal production source.
+Operational implication: future production cutovers to this image family should wait at least ~45 seconds before deciding the release is bad from early `/auth` or `/` failures.
 
 ---
 
