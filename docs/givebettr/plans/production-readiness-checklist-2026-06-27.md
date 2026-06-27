@@ -109,6 +109,7 @@ Only call Givebettr production-ready when **all P0 items are complete**, **all r
 - [ ] Final downstream legal/support endpoints are not declared here
 - [ ] Provider-launch allowlist and production callback strategy are not yet formalized here
 - [ ] Production-specific backup/restore verification is not yet recorded here
+- [ ] Unauthenticated `/provider/add` currently lands on `/auth/login-required`, but that page is a dead-end overlay with no clickable login CTA (see `docs/givebettr/plans/interactive-qa-findings-2026-06-27.md`)
 
 ---
 
