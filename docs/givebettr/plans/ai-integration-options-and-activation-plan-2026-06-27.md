@@ -1,0 +1,658 @@
+# AI Integration Options and Activation Plan
+
+> **For Hermes:** Use subagent-driven-development skill to implement this plan task-by-task.
+
+**Goal:** Identify every AI-powered feature in Givebettr/Postiz, map the provider and configuration requirements for each, compare vendor options including OpenRouter scenarios, and define the safest activation plan so in-app assistants, agents, media generation, and external AI integrations all work reliably.
+
+**Architecture:** Postiz currently has two distinct AI surfaces: **native in-app AI** implemented directly in the app code, and **external AI clients** that can drive Postiz through MCP, CLI, or Public API. Native in-app AI is currently coupled to specific providers in code. OpenRouter is best treated as a separate external-agent lane first, with native in-app OpenRouter support as an optional engineering track.
+
+**Tech Stack:** Postiz monorepo (Next.js frontend, NestJS backend, shared libraries), OpenAI SDK, Mastra/CopilotKit, LangChain, FAL, ElevenLabs, Transloadit, Kie.ai, Chatbase, AgentMedia, MCP, Public API, CLI.
+
+---
+
+## Grounded source set
+
+### Docs reviewed
+- `https://docs.postiz.com/configuration/reference`
+- `https://docs.postiz.com/public-api/oauth`
+- `https://docs.postiz.com/installation/development`
+- `https://docs.postiz.com/developer-guide`
+- `https://docs.postiz.com/mcp/introduction`
+- `https://docs.postiz.com/cli/introduction`
+- `https://docs.postiz.com/public-api/introduction`
+- OpenRouter docs:
+  - `https://openrouter.ai/docs/quickstart`
+  - `https://openrouter.ai/docs/guides/community/openai-sdk`
+  - `https://openrouter.ai/docs/guides/overview/multimodal/image-generation`
+  - `https://openrouter.ai/docs/guides/overview/multimodal/overview`
+
+### Code reviewed
+- `apps/backend/src/api/routes/copilot.controller.ts`
+- `apps/backend/src/api/routes/public.controller.ts`
+- `apps/backend/src/api/routes/users.controller.ts`
+- `apps/backend/src/api/routes/posts.controller.ts`
+- `apps/frontend/src/components/new-launch/manage.modal.tsx`
+- `apps/frontend/src/components/agents/agent.chat.tsx`
+- `apps/frontend/src/components/layout/agent.media.modal.tsx`
+- `apps/frontend/src/components/layout/chatbase.component.tsx`
+- `apps/frontend/src/components/launches/ai.video.tsx`
+- `apps/frontend/src/components/launches/polonto/polonto.picture.generation.tsx`
+- `libraries/nestjs-libraries/src/chat/load.tools.service.ts`
+- `libraries/nestjs-libraries/src/openai/openai.service.ts`
+- `libraries/nestjs-libraries/src/openai/fal.service.ts`
+- `libraries/nestjs-libraries/src/database/prisma/media/media.service.ts`
+- `libraries/nestjs-libraries/src/videos/images-slides/images.slides.ts`
+- `libraries/nestjs-libraries/src/videos/veo3/veo3.ts`
+- `libraries/nestjs-libraries/src/agent/agent.graph.service.ts`
+- `libraries/nestjs-libraries/src/agent/agent.graph.insert.service.ts`
+- `.env.example`
+
+### Live production env snapshot reviewed
+Checked presence/absence only in `/opt/postiz/live/postiz.env`:
+- Present: `OPENAI_API_KEY`, `ELEVENSLABS_API_KEY`, `TRANSLOADIT_AUTH`, `TRANSLOADIT_SECRET`, `KIEAI_API_KEY`, `CHATBASE_TOKEN`, `AGENT_API_KEY`, `OPENROUTER_API_KEY`, `ANTHROPIC_API_KEY`, `GROQ_API_KEY`, `GOOGLE_GENERATIVE_AI_API_KEY`, `XAI_API_KEY`, `MISTRAL_API_KEY`, `DEEPSEEK_API_KEY`, `TAVILY_API_KEY`
+- Missing: `FAL_KEY`, `AGENT_MEDIA_SSO_KEY`
+
+---
+
+## Hard truths before choosing a stack
+
+1. **Postiz is configured by env vars and requires restarts after changes.**
+2. **MCP/CLI/Public API do not require Postiz itself to run your model provider.** They let an external AI client drive Postiz.
+3. **Native in-app AI features are currently provider-coupled in code.** Most of the text/chat/image features are hardwired to OpenAI SDK usage and fixed model names.
+4. **OpenRouter is already available in production as a credential, but the current app code does not consume it.**
+5. **The docs + `.env.example` do not fully enumerate the AI vendor env surface used by the current code.** The repo code currently relies on additional keys like `FAL_KEY`, `ELEVENSLABS_API_KEY`, `TRANSLOADIT_*`, `KIEAI_API_KEY`, `AGENT_MEDIA_SSO_KEY`, `CHATBASE_TOKEN`, and `AGENT_API_KEY`.
+
+---
+
+## Feature inventory: what actually requires AI/provider configuration
+
+| Feature | User-facing surface | Current provider path in code | Required env/config | Current live state |
+|---|---|---|---|---|
+| Composer assistant | Bottom-right helper while editing a post | OpenAI via CopilotKit `OpenAIAdapter(model: gpt-4.1)` | `OPENAI_API_KEY` | Working at config level |
+| `/agents` workspace | Full agent UI at `/agents` | OpenAI + Mastra agent (`openai('gpt-5.2')`) | `OPENAI_API_KEY` + org AI entitlement | Working at config level |
+| Native AI image generation | “AI Img” / image generation UI | OpenAI image API (`chatgpt-image-latest`) | `OPENAI_API_KEY` | Working at config level |
+| Post generation / rewrite / split / prompt creation | Post generator + text helper paths | OpenAI chat models (`gpt-4.1`, `gpt-4o-2024-08-06`) + optional Tavily research | `OPENAI_API_KEY`, optional `TAVILY_API_KEY` | Working at config level |
+| Native AI video: `image-text-slides` | In-app video generator option | OpenAI + FAL + ElevenLabs + Transloadit | `OPENAI_API_KEY`, `FAL_KEY`, `ELEVENSLABS_API_KEY`, `TRANSLOADIT_AUTH`, `TRANSLOADIT_SECRET` | **Disabled** because `FAL_KEY` missing |
+| Native AI video: `veo3` | In-app video generator option | Kie.ai Veo 3 endpoint | `KIEAI_API_KEY` | Working at config level |
+| AgentMedia handoff | Modal -> external UGC product | AgentMedia SSO | `AGENT_MEDIA_SSO_KEY` | **Disabled** |
+| Public `/public/agent` ingestion | External automation hook | OpenAI categorization/classification | `AGENT_API_KEY`, `OPENAI_API_KEY` | Working at config level |
+| Chatbase support AI | Support/chat widget | Chatbase token-based embed | `CHATBASE_TOKEN` | Working at config level |
+| MCP | External AI client control plane | User-supplied model outside Postiz | Postiz API key or OAuth token; no model key required by Postiz for MCP itself | Available if backend path exposed |
+| CLI | External automation shell | User/client side | `POSTIZ_API_URL` + API key or OAuth login | Available |
+| Public API + OAuth apps | External automation/app integrations | User/client side | Postiz API key or OAuth app config | Available |
+
+---
+
+## Provider options by feature
+
+## 1) Composer assistant
+
+### Current provider options in code
+- **OpenAI only**
+
+### Why
+- `apps/backend/src/api/routes/copilot.controller.ts` uses `OpenAIAdapter`
+- model is hardcoded to `gpt-4.1`
+- no provider switch or base URL override exists in current code
+
+### Pros
+- Lowest implementation risk
+- Already configured in production
+- No code changes needed to keep using it
+
+### Cons
+- No multi-provider failover
+- No routing by cost/latency
+- No OpenRouter/Anthropic/Groq option without code changes
+
+### Recommendation
+- **Short-term:** keep **OpenAI** for the composer assistant.
+- **OpenRouter scenario:** only pursue for this feature if you explicitly want to engineer provider abstraction into the app.
+
+---
+
+## 2) `/agents` workspace
+
+### Current provider options in code
+- **OpenAI only**
+
+### Why
+- `libraries/nestjs-libraries/src/chat/load.tools.service.ts` creates the Mastra agent with `openai('gpt-5.2')`
+- `/copilot/agent` still uses `OpenAIAdapter(model: 'gpt-4.1')`
+
+### Pros
+- Already integrated with CopilotKit + Mastra stack
+- Strong capability for tool use and scheduling workflows
+
+### Cons
+- Current implementation is provider-coupled in two layers
+- Harder than the composer assistant to swap because both the transport/runtime layer and Mastra agent layer assume OpenAI
+
+### Recommendation
+- **Short-term:** keep **OpenAI**.
+- **Medium-term optional engineering track:** abstract the runtime/model selection so this can target OpenRouter or another provider.
+
+---
+
+## 3) Native AI image generation
+
+### Current provider options in code
+- **OpenAI only**
+
+### Why
+- `libraries/nestjs-libraries/src/openai/openai.service.ts` calls `openai.images.generate` with `chatgpt-image-latest`
+- image prompt expansion also uses OpenAI chat models
+
+### Pros
+- Single-vendor simplicity
+- Already working in prod
+- Lowest engineering effort
+
+### Cons
+- No model marketplace/fallbacks
+- Locked to OpenAI image API shape
+
+### Recommendation
+- **Short-term:** keep **OpenAI** for native in-app image generation.
+- **Optional future:** add an image-provider abstraction if you want OpenRouter image models or direct FAL image generation in-app.
+
+---
+
+## 4) Post generation / rewrite / research helpers
+
+### Current provider options in code
+- **OpenAI** for text generation/reformatting
+- **Optional Tavily** for web research augmentation
+
+### Why
+- `agent.graph.service.ts`, `agent.graph.insert.service.ts`, and `openai.service.ts` all rely on OpenAI models
+- Tavily is only used as an optional search tool when `TAVILY_API_KEY` exists
+
+### Pros
+- Good quality text generation
+- Tavily can improve research freshness
+
+### Cons
+- Tavily adds another vendor dependency
+- OpenAI-only model path again blocks provider flexibility
+
+### Recommendation
+- **Short-term:** keep **OpenAI + Tavily**.
+- If cost becomes an issue, this is one of the best candidates for an **OpenRouter-first engineering migration**, because text/chat is the easiest current surface to move behind an OpenAI-compatible base URL.
+
+---
+
+## 5) Native AI video: `image-text-slides`
+
+### Current provider options in code
+This is a **multi-vendor pipeline**, not a single-provider feature:
+- **OpenAI**: break prompt into slide plan / prompt text
+- **FAL**: generate slide images (`ideogram/v2` path in current code)
+- **ElevenLabs**: generate voice audio
+- **Transloadit**: stitch video + subtitles
+
+### Pros
+- Modular pipeline
+- Potentially cheaper than premium cinematic video generators
+- Good for templated explainer/slideshow content
+
+### Cons
+- Highest operational complexity
+- Four external dependencies for one feature
+- More failure points, more rate-limit surfaces, more billing surfaces
+- Currently disabled in production because `FAL_KEY` is missing
+
+### Recommendation
+- **Only enable if you specifically want slideshow-style videos.**
+- If enabled, document it as a brittle multi-vendor path and add explicit health checks.
+
+---
+
+## 6) Native AI video: `veo3`
+
+### Current provider options in code
+- **Kie.ai only** in current implementation
+
+### Why
+- `libraries/nestjs-libraries/src/videos/veo3/veo3.ts` directly calls Kie.ai Veo endpoints
+
+### Pros
+- Simpler than the slideshow pipeline
+- Single provider for a premium video path
+- Already configured in production
+
+### Cons
+- Vendor lock-in
+- Async generation latency
+- Premium-generation cost profile
+
+### Recommendation
+- **Use this as the primary native in-app video feature** if the goal is a simpler supportable stack.
+- Keep `image-text-slides` as optional only if it serves a specific content need.
+
+---
+
+## 7) AgentMedia handoff
+
+### Current provider options in code
+- **AgentMedia only**
+
+### Why
+- `apps/frontend/src/components/layout/agent.media.modal.tsx` explicitly describes it as a separate product with separate pricing
+- backend requires `AGENT_MEDIA_SSO_KEY`
+
+### Pros
+- Productized UGC/video workflow
+- Separate account/pricing can isolate billing from core app
+
+### Cons
+- Not part of native Postiz credits
+- Separate vendor/account to manage
+- Currently disabled because SSO key is missing
+
+### Recommendation
+- Treat AgentMedia as an **optional adjacent product**, not a core dependency for the main app AI stack.
+
+---
+
+## 8) Chatbase support AI
+
+### Current provider options in code
+- **Chatbase only**
+
+### Pros
+- Separate from core content-generation stack
+- Already configured
+
+### Cons
+- Separate support AI vendor to manage
+- Not the same as the composer assistant or `/agents`
+
+### Recommendation
+- Keep if support/chat value is real.
+- Do not confuse it with the app's native creation assistants.
+
+---
+
+## 9) MCP / CLI / Public API / OAuth apps
+
+### Current provider options
+- **Any external model provider you choose outside Postiz**
+- This is where **OpenRouter** shines immediately
+
+### Why
+- Postiz MCP docs explicitly say Postiz does **not** need an OpenAI key for MCP itself
+- the AI client supplies the model
+- CLI and Public API are just automation/control surfaces
+
+### Pros
+- No app code changes required
+- Best path for OpenRouter experimentation
+- Lets you use many models/providers without destabilizing native Postiz UI
+
+### Cons
+- Separate from the in-app assistant/agent UX
+- You must build or run the external client/orchestrator yourself
+
+### Recommendation
+- **Best immediate OpenRouter scenario:** use **OpenRouter + MCP/Public API** for external agents and advanced automations.
+
+---
+
+## OpenRouter evaluation by scenario
+
+## Scenario A — Native in-app AI only (no app code changes)
+
+### What it means
+Keep Postiz UI-native AI features on their current providers.
+
+### Recommended stack
+- Composer assistant: OpenAI
+- `/agents`: OpenAI
+- Image generation: OpenAI
+- Text/research helpers: OpenAI + Tavily
+- Video: Kie.ai as primary, slideshow pipeline optional
+- AgentMedia: optional, separate product
+- Chatbase: optional support AI
+
+### Pros
+- Lowest implementation risk
+- Fastest to stabilize
+- Aligns with current code
+
+### Cons
+- No OpenRouter benefit inside native UI
+- Mixed vendor surface for video/support
+
+### Recommendation
+- **This should be the baseline activation plan.**
+
+---
+
+## Scenario B — OpenRouter for external agents, native UI unchanged
+
+### What it means
+Use OpenRouter for your own external AI clients while Postiz native UI keeps its current providers.
+
+### Where OpenRouter fits immediately
+- custom automations using **MCP**
+- custom automations using **Public API**
+- custom scripts via **CLI**
+- future custom internal agents outside the Postiz UI
+
+### Pros
+- Immediate access to many models
+- Low risk to production UI
+- Great for trying text, vision, image, and video-capable models without rewriting Postiz first
+- OpenRouter is OpenAI-compatible for many text/chat use cases
+
+### Cons
+- In-app Postiz assistant/agent still remain on OpenAI
+- Native image/video tools still use their own vendors
+
+### Price/performance recommendation
+- **Best overall recommendation if you want OpenRouter now.**
+- Use OpenRouter for external agent workflows first, while keeping native UI stable.
+
+---
+
+## Scenario C — Engineer OpenRouter into Postiz-native text/chat surfaces
+
+### What it means
+Modify Postiz so the composer assistant, `/agents`, and text-generation services can use OpenRouter instead of direct OpenAI.
+
+### Feasibility
+- **Text/chat surfaces:** feasible, because OpenRouter documents OpenAI SDK compatibility via `baseURL: https://openrouter.ai/api/v1`
+- **Image generation:** possible, but not drop-in identical in current code because OpenRouter exposes a dedicated images API that would need explicit integration work
+- **Video generation:** not a drop-in fit for the current native video stack; OpenRouter would be a new implementation, not a simple env swap
+
+### Pros
+- Provider flexibility inside the app
+- central model routing and fallback options
+- better cost tuning for text workflows
+
+### Cons
+- Requires real engineering work and testing
+- more abstraction complexity
+- image/video still need separate design decisions
+
+### Recommendation
+- Do this **only after** the baseline native stack is stable.
+- Prioritize **text/chat** first if you pursue it.
+
+---
+
+## Vendor pros/cons and recommendations
+
+| Vendor / service | Best use in current system | Pros | Cons | Recommendation |
+|---|---|---|---|---|
+| OpenAI | Native assistant, agents, text generation, native image generation | Already integrated, lowest risk, strong quality | Cost, vendor lock-in, no multi-provider routing | **Primary native provider** |
+| OpenRouter | External MCP/API/CLI agents now; optional future native text/chat abstraction | Huge model choice, routing, fallbacks, competitive pricing, multimodal support | Not wired into native Postiz today; image/video need engineering choices | **Best external-agent provider** |
+| Tavily | Optional research augmentation | Better fresh web context | Extra vendor/billing | Keep only where research quality matters |
+| FAL | Image generation inside slideshow video pipeline | Specialized media infra | Extra vendor dependency; currently missing | Enable only if slideshow videos matter |
+| ElevenLabs | Voice generation for slideshow video pipeline | Strong voice quality | Separate cost/vendor | Keep only if slideshow videos enabled |
+| Transloadit | Media assembly/subtitles for slideshow pipeline | Mature media pipeline | Extra vendor dependency | Keep only if slideshow videos enabled |
+| Kie.ai | Native Veo3 video generation | Simpler single-vendor premium video path | Vendor lock-in, premium cost | **Primary native video path** |
+| AgentMedia | External UGC/video workflow | Productized separate workflow | Separate account/billing, SSO dependency | Optional adjacent product |
+| Chatbase | Support AI widget | Separate support experience | Separate vendor, easy to confuse with native assistant | Optional, keep separate in docs and UX |
+
+---
+
+## Recommended target architecture
+
+## Recommended default stack
+
+### Core native in-app AI
+- **OpenAI** for:
+  - composer assistant
+  - `/agents`
+  - post generation / text transformations
+  - native image generation
+- **Tavily** for optional research augmentation
+- **Kie.ai** for primary native video generation
+
+### Optional extras
+- **Chatbase** for support AI
+- **AgentMedia** for separate UGC workflow
+- **FAL + ElevenLabs + Transloadit** only if slideshow videos are a product priority
+
+### External advanced automation lane
+- **OpenRouter + Postiz MCP/Public API/CLI**
+
+This gives you:
+- a stable native app stack
+- a flexible external AI stack
+- no forced rewrite before you learn what users actually want
+
+---
+
+## Current production gaps to close first
+
+1. **Document the hidden AI env surface**
+   - `.env.example` currently surfaces `OPENAI_API_KEY` but not the full live AI dependency set.
+2. **Decide whether slideshow video is actually a product priority**
+   - if yes, add `FAL_KEY`
+   - if not, leave disabled intentionally and document that Veo3 is the supported video path
+3. **Decide whether AgentMedia is strategic or optional**
+   - if strategic, configure `AGENT_MEDIA_SSO_KEY`
+   - if optional, mark it clearly as separate-product functionality
+4. **Separate “native AI”, “support AI”, and “external AI clients” in product docs**
+   - users should not confuse Chatbase, AgentMedia, composer assistant, `/agents`, MCP, and Public API
+
+---
+
+## Implementation plan
+
+### Task 1: Create a canonical AI feature inventory doc
+
+**Objective:** Freeze a durable map of every AI surface, provider, env requirement, and current live status.
+
+**Files:**
+- Keep/update: `docs/givebettr/plans/ai-integration-options-and-activation-plan-2026-06-27.md`
+- Create later if needed: `docs/givebettr/inventories/ai-feature-config-inventory.md`
+
+**Steps:**
+1. Copy this plan into a durable canonical location if it is later superseded.
+2. Add a small appendix with exact env key names and whether each is documented in `.env.example`.
+3. Cross-link from readiness docs if AI activation becomes a launch dependency.
+
+**Verification:**
+- A maintainer can answer “what uses which provider?” from docs alone.
+
+---
+
+### Task 2: Normalize env documentation
+
+**Objective:** Make repo docs match the actual AI-related env surface the code uses.
+
+**Files:**
+- Modify: `.env.example`
+- Modify or create: `docs/givebettr/plans/ai-integration-options-and-activation-plan-2026-06-27.md`
+- Optional modify: docs referencing configuration/env setup
+
+**Env keys to consider documenting explicitly:**
+- `OPENAI_API_KEY`
+- `TAVILY_API_KEY`
+- `FAL_KEY`
+- `ELEVENSLABS_API_KEY`
+- `TRANSLOADIT_AUTH`
+- `TRANSLOADIT_SECRET`
+- `KIEAI_API_KEY`
+- `AGENT_MEDIA_SSO_KEY`
+- `CHATBASE_TOKEN`
+- `AGENT_API_KEY`
+
+**Verification:**
+- A fresh operator can configure AI features without reading source code.
+
+---
+
+### Task 3: Stabilize the baseline native AI stack
+
+**Objective:** Keep the native UI working on the lowest-risk provider set.
+
+**Files / runtime:**
+- Runtime: `/opt/postiz/live/postiz.env`
+- Backend: `apps/backend/src/api/routes/copilot.controller.ts`
+- Shared services: `libraries/nestjs-libraries/src/openai/openai.service.ts`
+- Video: `libraries/nestjs-libraries/src/videos/veo3/veo3.ts`
+
+**Steps:**
+1. Keep `OPENAI_API_KEY` configured.
+2. Keep `KIEAI_API_KEY` configured.
+3. Keep `TAVILY_API_KEY` configured only if research augmentation is desired.
+4. Verify composer assistant, `/agents`, native image generation, and Veo3 generation end-to-end.
+
+**Verification:**
+- Composer assistant responds.
+- `/agents` can send a message.
+- Native image generation succeeds.
+- Veo3 appears in `/media/video-options` and can generate successfully.
+
+---
+
+### Task 4: Make a product decision on slideshow video
+
+**Objective:** Choose whether `image-text-slides` is supported or intentionally disabled.
+
+**Files / runtime:**
+- Runtime: `/opt/postiz/live/postiz.env`
+- Code reference: `libraries/nestjs-libraries/src/videos/images-slides/images.slides.ts`
+
+**Option A — support it**
+- Add/configure `FAL_KEY`
+- Verify ElevenLabs + Transloadit paths still work
+- Test the full pipeline
+
+**Option B — intentionally disable it**
+- Leave `FAL_KEY` absent
+- Document that Veo3 is the supported native video experience
+
+**Recommendation:**
+- Prefer **Option B** unless slideshow-style explainers are a confirmed product requirement.
+
+---
+
+### Task 5: Make a product decision on AgentMedia
+
+**Objective:** Decide whether AgentMedia is core or optional.
+
+**Files / runtime:**
+- Runtime: `/opt/postiz/live/postiz.env`
+- Frontend: `apps/frontend/src/components/layout/agent.media.modal.tsx`
+- Backend: `apps/backend/src/api/routes/users.controller.ts`
+
+**Option A — enable it**
+- Configure `AGENT_MEDIA_SSO_KEY`
+- Verify SSO handoff opens correctly
+- Document separate pricing/account expectations
+
+**Option B — keep it optional/off**
+- Leave it disabled
+- Make sure product copy does not imply it is included in the main subscription
+
+**Recommendation:**
+- Treat AgentMedia as **optional** unless UGC video is central to the product strategy.
+
+---
+
+### Task 6: Stand up the OpenRouter external-agent lane
+
+**Objective:** Use your OpenRouter account without destabilizing the native app.
+
+**Files / surfaces:**
+- Docs: MCP / CLI / Public API guides
+- Runtime endpoints:
+  - `/mcp`
+  - `/public/v1/*`
+  - CLI with `POSTIZ_API_URL`
+
+**Steps:**
+1. Use Postiz MCP or Public API from an external agent/client that uses OpenRouter.
+2. Authenticate via Postiz API key or OAuth app, depending on the client.
+3. Choose model/provider routing inside OpenRouter, not inside Postiz.
+4. Test scheduling, integration listing, and optional media generation from the external client.
+
+**Verification:**
+- An OpenRouter-powered external agent can list integrations and schedule a post through Postiz.
+
+---
+
+### Task 7: Optional engineering spike for native OpenRouter support
+
+**Objective:** Determine whether native Postiz text/chat surfaces should become provider-abstracted.
+
+**Files likely involved:**
+- `apps/backend/src/api/routes/copilot.controller.ts`
+- `libraries/nestjs-libraries/src/chat/load.tools.service.ts`
+- `libraries/nestjs-libraries/src/openai/openai.service.ts`
+- possibly new provider-abstraction files under `libraries/nestjs-libraries/src/ai/`
+
+**Suggested spike order:**
+1. Add config abstraction for text/chat provider selection.
+2. Prove OpenRouter works for one non-critical text surface first.
+3. Migrate composer assistant or post-generation helper before `/agents`.
+4. Only then consider image API abstraction.
+
+**Recommendation:**
+- Do this only after Tasks 1-6 are complete.
+
+---
+
+## Verification matrix
+
+| Feature | Verification command or action | Expected result |
+|---|---|---|
+| Composer assistant | Open post editor and use assistant popup | AI response appears without provider error |
+| `/agents` | Visit `/agents/new` and send prompt | Agent responds and can see channels |
+| Native image generation | Use image generation UI | image is generated and inserted/uploaded |
+| Veo3 | Open AI video modal and generate `veo3` | generated video returns and saves to media |
+| Slideshow video | Generate `image-text-slides` only if enabled | full pipeline completes |
+| AgentMedia | Open modal and continue to AgentMedia | SSO handoff opens with authenticated org context |
+| Public agent | POST to `/public/agent` with `AGENT_API_KEY` | content is categorized/saved |
+| MCP | Connect external AI client to `/mcp` | integration/tool discovery succeeds |
+| CLI | `postiz auth:status` / `postiz integrations:list` | auth and listing succeed |
+| OAuth app | complete `/oauth/authorize` + `/oauth/token` flow | token works on Public API |
+
+---
+
+## Final recommendation
+
+## Recommended order of operations
+1. **Keep native in-app AI on OpenAI** for now.
+2. **Use Kie.ai as the primary native video path.**
+3. **Decide intentionally** whether slideshow video is worth the extra vendor stack.
+4. **Decide intentionally** whether AgentMedia is core or optional.
+5. **Use OpenRouter first for external agents over MCP/Public API/CLI.**
+6. Only then decide whether native Postiz text/chat should be refactored to support OpenRouter directly.
+
+## Best price/performance recommendation
+- **For the app UI today:** OpenAI remains the best price/performance choice because it already fits the code and has the lowest implementation risk.
+- **For experimentation, multi-model access, and future automation:** OpenRouter is the best price/performance layer because it gives you a single gateway to many vendors without changing the native UI first.
+- **For native video:** prefer Kie.ai Veo3 as the supported path; enable the FAL/ElevenLabs/Transloadit slideshow stack only if there is confirmed product demand.
+
+---
+
+## Open questions to resolve before implementation
+
+1. Do you want slideshow explainer videos, or should Veo3 be the only supported native video mode?
+2. Do you want AgentMedia positioned as a core product feature or an optional upsell/adjacent product?
+3. Do you want OpenRouter only for external automation, or do you want to fund an engineering track for native in-app provider abstraction too?
+4. Which specific workflows matter most first:
+   - in-app composing
+   - `/agents`
+   - API/MCP automations
+   - image generation
+   - video generation
+
+---
+
+## Safe default if no further decision is made
+
+If nothing else is changed, the safest supported stack is:
+- OpenAI for native text/chat/image features
+- Tavily optional for research
+- Kie.ai for native video
+- Chatbase optional for support
+- AgentMedia off until intentionally enabled
+- OpenRouter reserved for external MCP/API/CLI automations
