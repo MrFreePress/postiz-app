@@ -4,7 +4,7 @@
 > Purpose: first-pass P0 audit of the downstream shipping path before any production launch claim.
 
 ## Executive summary
-The downstream fork is now materially closer to a coherent production release story: the live production lane has been normalized to the canonical `.env` + app `env_file` shape and redeployed onto the current application code baseline. The remaining gap is making the image source fully repeatable through an exercised downstream GHCR-tag workflow rather than the currently working host-local production tag.
+The downstream fork now has a verified downstream production path: the live production lane is normalized to the canonical `.env` + app `env_file` shape, production is running the downstream GHCR image `ghcr.io/mrfreepress/postiz-app:givebettr-prod-2026-06-27-fa1741d7`, and the public smoke pack is passing. The remaining gap is no longer release-source repeatability; it is mostly operator polish, especially documenting the warmup window before early `/` or `/auth` failures should be treated as a bad deploy.
 
 ### What is already good
 - The downstream GitHub fork is authoritative for current work:
@@ -16,7 +16,7 @@ The downstream fork is now materially closer to a coherent production release st
 - The live production lane is now normalized on-host to the canonical split:
   - compose interpolation: `/opt/postiz/live/.env`
   - app runtime env: `/opt/postiz/live/postiz.env`
-  - current verified live image: `postiz-givebettr-prod:5ce513f6`
+  - current verified live image: `ghcr.io/mrfreepress/postiz-app:givebettr-prod-2026-06-27-fa1741d7`
 - Canonical downstream deploy and rollback runbooks now exist:
   - `docs/givebettr/plans/production-deploy-runbook-2026-06-27.md`
   - `docs/givebettr/plans/production-rollback-procedure-2026-06-27.md`
@@ -92,28 +92,28 @@ The downstream fork is now materially closer to a coherent production release st
 
 ### P0: Release identity and deployment path
 - **Production deployment artifacts reference downstream identity only**
-  - **Mostly yes, with one remaining runtime caveat**
-  - Repo defaults and live compose shape now point downstream, but the current verified production image is still a host-local tag rather than a GHCR-pulled downstream tag.
+  - **Yes**
+  - Repo defaults point downstream, the live compose shape is normalized, and the verified production runtime is now on the downstream GHCR tag `ghcr.io/mrfreepress/postiz-app:givebettr-prod-2026-06-27-fa1741d7`.
 
 - **No required production operator step depends on upstream image namespaces or upstream repo ownership**
-  - **Now mostly yes**
-  - The live compose no longer depends on upstream image namespaces; the remaining work is proving the downstream GHCR publish lane as the normal source of release images.
+  - **Yes**
+  - The verified publish/deploy path now runs through Derek's fork, downstream GHCR namespace, and the normalized `/opt/postiz/live` runtime.
 
 - **Canonical deploy path is documented end-to-end**
-  - **Yes, and now matched by the live compose shape**
+  - **Yes**
   - Deploy and rollback runbooks exist and the live production lane now uses the documented `.env` + `postiz.env` split.
 
 - **Rollback path is documented and tested**
-  - **Documented yes, partially exercised**
+  - **Documented yes, lightly exercised**
 
 - **Release candidate commit/tag selection process is explicit**
   - **Yes**
 
 ## Recommended next P0 actions
-1. Exercise the downstream GHCR publish lane end-to-end and verify a registry-backed production image can replace the current host-local production tag.
-2. Capture one verified tagged downstream image deploy using the normalized `/opt/postiz/live` runbook path.
-3. Rehearse rollback by changing only `POSTIZ_IMAGE=` in `/opt/postiz/live/.env` on a safe lane or maintenance window.
-4. Link any resulting registry-backed release worksheet updates back into the production-readiness docs.
+1. Add explicit warmup timing guidance to all deploy checklists so operators do not misclassify the first ~45 seconds of a healthy cutover as a bad release.
+2. Capture one clean rollback rehearsal that changes only `POSTIZ_IMAGE=` in `/opt/postiz/live/.env`, waits through the warmup window, and verifies the smoke pack.
+3. Continue pruning stale upstream/non-downstream references in non-canonical docs as time allows.
+4. Link future tagged release worksheets back into these production-readiness docs.
 
 ## Bottom line
-The downstream fork is no longer blocked by upstream image identity on the live host, and the production compose shape is now normalized to the documented downstream pattern. P0 for deployment path is materially further along: the live lane has been updated and verified, but execution-complete release hardening still requires one fully exercised GHCR-backed tagged downstream release so the image source becomes as repeatable as the now-canonical host layout.
+The downstream fork now has a verified downstream production path: the live host is normalized to the documented `.env` + `postiz.env` pattern, the production runtime is on the downstream GHCR image `ghcr.io/mrfreepress/postiz-app:givebettr-prod-2026-06-27-fa1741d7`, and the public smoke pack is passing. The main remaining work is operator hardening — especially codifying warmup-aware verification and rehearsing rollback using only `POSTIZ_IMAGE=` rotation.
