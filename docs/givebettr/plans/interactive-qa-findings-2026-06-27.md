@@ -77,14 +77,92 @@ The page should set an explicit title, for example:
 #### Actual behavior
 Browser title/tab context is empty, which is a minor polish/usability issue.
 
+## Additional authenticated AI findings (reported after live operator validation)
+
+### Verified by live operator
+- Composer/chat assistant successfully converses in the live app.
+- `/agents` successfully converses in the live app.
+
+### New issues to validate
+
+#### 3. Posts appear not to publish live after creation / `Post now`
+- **Severity:** High
+- **Category:** Core publishing verification / cross-platform delivery
+
+**Observed behavior**
+- A post was requested via `/agents`, but no corresponding post was observed appearing live.
+- In another flow, an image was attached and `Post now` was clicked, but no matching live post was found on the destination platform.
+
+**Why this matters**
+- This is broader than the agents surface.
+- The whole platform needs validation that a post transitions from app UI intent to real external-platform publication.
+
+**Required follow-up**
+- Validate publishing across the platform, not just from `/agents`.
+- Trace post state from creation → queued/scheduled/immediate dispatch → external platform confirmation.
+- Confirm whether the issue is dispatch failure, channel/provider failure, delayed publish, or user-surface confusion.
+
+#### 4. AI image flow produced a white-box saved asset in one path
+- **Severity:** Medium
+- **Category:** Media pipeline / UX reliability
+
+**Observed behavior**
+- One AI image flow produced a white-box saved asset instead of the expected generated dog image.
+- A separate AI image-generation path did transfer an image into the post successfully.
+- The operator suspects there may also have been a process mistake during the failed attempt.
+
+**Interpretation**
+- This may be a user-process issue, a save/upload pipeline issue, or a generation-to-post transfer issue.
+- It needs a controlled reproduction before concluding it is a platform defect.
+
+**Required follow-up**
+- Reproduce both the failing and successful image paths.
+- Verify whether the bad artifact is generated upstream, corrupted during upload/save, or mishandled when inserted into the post.
+- Pair this with live publish validation because the same session also failed to produce an observed live post.
+
+#### 5. Video-generation UI is not visible even though video providers exist in code
+- **Severity:** Medium
+- **Category:** Feature discoverability / gating mismatch
+
+**Observed behavior**
+- The operator could not locate any create/generate video entry in the UI.
+- `/agents` suggested menu items that are not present.
+- When challenged, `/agents` guessed that permissions might be missing.
+
+**Code-grounded findings**
+- The frontend only renders `AiImage` and `AiVideo` controls when `user?.tier?.ai` is truthy in `apps/frontend/src/components/media/media.component.tsx`.
+- The video control itself returns `null` if `/media/video-options` returns an empty list in `apps/frontend/src/components/launches/ai.video.tsx`.
+- Backend video options come from `MediaService.getVideoOptions()` → `VideoManager.getAllVideos()` and are filtered to videos whose decorator metadata has `available: true`.
+- Current code exposes two providers:
+  - `veo3` — available only when `KIEAI_API_KEY` exists
+  - `image-text-slides` — available only when `FAL_KEY` exists
+- Self-hosting alone does **not** remove video generation from code. The more likely blockers are:
+  1. the UI is only visible in the media toolbar context,
+  2. the user tier / AI gating in the frontend,
+  3. empty `/media/video-options` response at runtime,
+  4. stale user/session/app state prior to the recent AI-key rollout.
+
+**Current best hypothesis**
+- The `/agents` explanation about “self-hosted usually doesn’t include it” is not supported by this codebase as the primary explanation.
+- In this downstream self-hosted build, video is code-present but conditionally surfaced.
+
+**Required follow-up**
+- Inspect the live authenticated UI after the recent key rollout.
+- Verify whether `user.tier.ai` is true in the live session.
+- Verify whether `/media/video-options` returns `veo3` for the authenticated user.
+- If the API returns a provider but the button is still absent, debug frontend rendering/state.
+
 ## Testing notes
-- This pass covered only unauthenticated interactive behavior.
-- No authenticated flows were exercised in this pass.
-- No provider OAuth handshake was exercised from an authenticated session.
-- No billing/admin paths were tested here.
+- The initial documented pass covered only unauthenticated interactive behavior.
+- Later operator validation confirmed authenticated assistant and `/agents` chat functionality.
+- No end-to-end proof of successful live external-platform publication has yet been recorded.
+- No controlled reproduction for the white-box image issue has yet been recorded.
+- No authenticated browser evidence has yet been captured for the missing video UI after the latest key rollout.
 
 ## Recommended next actions
 1. Fix `/auth/login-required` so it includes a clear login CTA.
 2. Add a document title for `/auth/login-required`.
-3. Re-run this unauthenticated pass after the page is fixed.
-4. Follow with an authenticated interactive pass covering one provider connect flow and one operator-critical path.
+3. Validate live post delivery across the platform, especially `Post now` and agent-created posts.
+4. Reproduce and isolate the white-box AI image path.
+5. Run an authenticated browser/API check for video UI availability after the recent key rollout.
+6. Re-run the earlier unauthenticated pass after the login-required page is fixed.
