@@ -4,7 +4,7 @@
 
 **Scope:** Native in-app AI surfaces, support AI, AgentMedia handoff, and the public agent ingestion route.
 
-**Current live status:** As of the latest verification pass, the production app does **not** have working in-app AI keys loaded. `OPENAI_API_KEY` exists but is empty; the other AI/provider keys below are absent from the running container.
+**Current live status:** After the 2026-06-28 Bitwarden rollout, the production app now has `OPENAI_API_KEY`, `TAVILY_API_KEY`, `KIEAI_API_KEY`, `ELEVENSLABS_API_KEY`, `TRANSLOADIT_AUTH`, and `TRANSLOADIT_SECRET` loaded in the running container. `FAL_KEY` and `AGENT_MEDIA_SSO_KEY` are still absent, so slideshow video remains incomplete and AgentMedia handoff remains off.
 
 ---
 

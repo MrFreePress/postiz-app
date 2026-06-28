@@ -52,13 +52,36 @@ Verified two live sources:
 - config file: `/opt/postiz/live/postiz.env`
 - running container env: `docker inspect postiz`
 
-Current verified state:
-- `OPENAI_API_KEY` exists but is **empty** in both the file and the running container
-- the running `postiz` container does **not** currently expose `OPENROUTER_API_KEY`, `ANTHROPIC_API_KEY`, `GROQ_API_KEY`, `GOOGLE_GENERATIVE_AI_API_KEY`, `XAI_API_KEY`, `MISTRAL_API_KEY`, `DEEPSEEK_API_KEY`, `ELEVENSLABS_API_KEY`, `TAVILY_API_KEY`, `KIEAI_API_KEY`, `FAL_KEY`, `TRANSLOADIT_AUTH`, `TRANSLOADIT_SECRET`, `CHATBASE_TOKEN`, `AGENT_API_KEY`, or `AGENT_MEDIA_SSO_KEY`
+Initial verification found the app effectively unconfigured for in-app AI.
+
+After the Bitwarden Secrets Manager rollout on 2026-06-28, the live state is now:
+- loaded into the running container:
+  - `OPENAI_API_KEY`
+  - `TAVILY_API_KEY`
+  - `KIEAI_API_KEY`
+  - `ELEVENSLABS_API_KEY`
+  - `TRANSLOADIT_AUTH`
+  - `TRANSLOADIT_SECRET`
+- still absent from the running container:
+  - `FAL_KEY`
+  - `AGENT_MEDIA_SSO_KEY`
+- not part of this rollout / still not verified as active in the running container during this pass:
+  - `CHATBASE_TOKEN`
+  - `AGENT_API_KEY`
+  - `OPENROUTER_API_KEY`
+  - `ANTHROPIC_API_KEY`
+  - `GROQ_API_KEY`
+  - `GOOGLE_GENERATIVE_AI_API_KEY`
+  - `XAI_API_KEY`
+  - `MISTRAL_API_KEY`
+  - `DEEPSEEK_API_KEY`
 
 Interpretation:
-- the AI/provider keys I previously treated as present are **not actually in the active live configuration**
-- as of this verification pass, the live app should be treated as **unconfigured for in-app AI** until your real keys are loaded from your secret source
+- core native text/image AI now has its required OpenAI credential loaded
+- optional research augmentation now has Tavily loaded
+- native `veo3` video now has Kie.ai loaded
+- the slideshow pipeline is still only **partially** configured because `FAL_KEY` is still absent
+- AgentMedia handoff remains disabled because `AGENT_MEDIA_SSO_KEY` is still absent
 
 ---
 
@@ -77,15 +100,15 @@ Interpretation:
 
 | Feature | User-facing surface | Current provider path in code | Required env/config | Current live state |
 |---|---|---|---|---|
-| Composer assistant | Bottom-right helper while editing a post | OpenAI via CopilotKit `OpenAIAdapter(model: gpt-4.1)` | `OPENAI_API_KEY` | **Not configured** — active container has `OPENAI_API_KEY` empty |
-| `/agents` workspace | Full agent UI at `/agents` | OpenAI + Mastra agent (`openai('gpt-5.2')`) | `OPENAI_API_KEY` + org AI entitlement | **Not configured** — `OPENAI_API_KEY` empty, entitlement still to be checked after keys are loaded |
-| Native AI image generation | “AI Img” / image generation UI | OpenAI image API (`chatgpt-image-latest`) | `OPENAI_API_KEY` | **Not configured** — `OPENAI_API_KEY` empty |
-| Post generation / rewrite / split / prompt creation | Post generator + text helper paths | OpenAI chat models (`gpt-4.1`, `gpt-4o-2024-08-06`) + optional Tavily research | `OPENAI_API_KEY`, optional `TAVILY_API_KEY` | **Not configured** for core text generation; optional research also **not configured** |
-| Native AI video: `image-text-slides` | In-app video generator option | OpenAI + FAL + ElevenLabs + Transloadit | `OPENAI_API_KEY`, `FAL_KEY`, `ELEVENSLABS_API_KEY`, `TRANSLOADIT_AUTH`, `TRANSLOADIT_SECRET` | **Not configured** — every required key is absent/empty |
-| Native AI video: `veo3` | In-app video generator option | Kie.ai Veo 3 endpoint | `KIEAI_API_KEY` | **Not configured** — `KIEAI_API_KEY` absent |
+| Composer assistant | Bottom-right helper while editing a post | OpenAI via CopilotKit `OpenAIAdapter(model: gpt-4.1)` | `OPENAI_API_KEY` | **Configured at env level** — OpenAI key loaded into running container |
+| `/agents` workspace | Full agent UI at `/agents` | OpenAI + Mastra agent (`openai('gpt-5.2')`) | `OPENAI_API_KEY` + org AI entitlement | **Configured at env level** — OpenAI key loaded; org entitlement still needs authenticated UI verification |
+| Native AI image generation | “AI Img” / image generation UI | OpenAI image API (`chatgpt-image-latest`) | `OPENAI_API_KEY` | **Configured at env level** — OpenAI key loaded |
+| Post generation / rewrite / split / prompt creation | Post generator + text helper paths | OpenAI chat models (`gpt-4.1`, `gpt-4o-2024-08-06`) + optional Tavily research | `OPENAI_API_KEY`, optional `TAVILY_API_KEY` | **Configured at env level** — OpenAI + Tavily loaded |
+| Native AI video: `image-text-slides` | In-app video generator option | OpenAI + FAL + ElevenLabs + Transloadit | `OPENAI_API_KEY`, `FAL_KEY`, `ELEVENSLABS_API_KEY`, `TRANSLOADIT_AUTH`, `TRANSLOADIT_SECRET` | **Partially configured** — OpenAI + ElevenLabs + Transloadit loaded, but `FAL_KEY` still absent |
+| Native AI video: `veo3` | In-app video generator option | Kie.ai Veo 3 endpoint | `KIEAI_API_KEY` | **Configured at env level** — Kie.ai key loaded |
 | AgentMedia handoff | Modal -> external UGC product | AgentMedia SSO | `AGENT_MEDIA_SSO_KEY` | **Not configured** — SSO key absent |
-| Public `/public/agent` ingestion | External automation hook | OpenAI categorization/classification | `AGENT_API_KEY`, `OPENAI_API_KEY` | **Not configured** — both required envs absent/empty |
-| Chatbase support AI | Support/chat widget | Chatbase token-based embed | `CHATBASE_TOKEN` | **Not configured** — token absent |
+| Public `/public/agent` ingestion | External automation hook | OpenAI categorization/classification | `AGENT_API_KEY`, `OPENAI_API_KEY` | **Not fully configured** — OpenAI loaded, but `AGENT_API_KEY` not verified in this rollout |
+| Chatbase support AI | Support/chat widget | Chatbase token-based embed | `CHATBASE_TOKEN` | **Not verified in this rollout** |
 | MCP | External AI client control plane | User-supplied model outside Postiz | Postiz API key or OAuth token; no model key required by Postiz for MCP itself | Available independently of in-app AI keys |
 | CLI | External automation shell | User/client side | `POSTIZ_API_URL` + API key or OAuth login | Available independently of in-app AI keys |
 | Public API + OAuth apps | External automation/app integrations | User/client side | Postiz API key or OAuth app config | Available independently of in-app AI keys |
@@ -94,20 +117,20 @@ Interpretation:
 
 | Env key | Gadget(s) it affects | Verified live state |
 |---|---|---|
-| `OPENAI_API_KEY` | composer assistant, `/agents`, native image generation, text helpers, public agent | **Present but empty** |
-| `TAVILY_API_KEY` | optional research augmentation | **Absent** |
-| `KIEAI_API_KEY` | native `veo3` video generation | **Absent** |
+| `OPENAI_API_KEY` | composer assistant, `/agents`, native image generation, text helpers, public agent | **Loaded into live app** |
+| `TAVILY_API_KEY` | optional research augmentation | **Loaded into live app** |
+| `KIEAI_API_KEY` | native `veo3` video generation | **Loaded into live app** |
 | `FAL_KEY` | slideshow video image generation | **Absent** |
-| `ELEVENSLABS_API_KEY` | slideshow video voice generation | **Absent** |
-| `TRANSLOADIT_AUTH` | slideshow video assembly | **Absent** |
-| `TRANSLOADIT_SECRET` | slideshow video assembly | **Absent** |
-| `CHATBASE_TOKEN` | Chatbase support widget | **Absent** |
-| `AGENT_API_KEY` | `/public/agent` ingestion | **Absent** |
+| `ELEVENSLABS_API_KEY` | slideshow video voice generation | **Loaded into live app** |
+| `TRANSLOADIT_AUTH` | slideshow video assembly | **Loaded into live app** |
+| `TRANSLOADIT_SECRET` | slideshow video assembly | **Loaded into live app** |
+| `CHATBASE_TOKEN` | Chatbase support widget | **Not verified in this rollout** |
+| `AGENT_API_KEY` | `/public/agent` ingestion | **Not verified in this rollout** |
 | `AGENT_MEDIA_SSO_KEY` | AgentMedia handoff | **Absent** |
-| `OPENROUTER_API_KEY` | no current native in-app path; future external-agent or custom path | **Absent from live app config** |
-| `ANTHROPIC_API_KEY` / `GROQ_API_KEY` / `GOOGLE_GENERATIVE_AI_API_KEY` / `XAI_API_KEY` / `MISTRAL_API_KEY` / `DEEPSEEK_API_KEY` | no current native in-app path in this codebase | **Absent from live app config** |
+| `OPENROUTER_API_KEY` | no current native in-app path; future external-agent or custom path | **Not verified in this rollout** |
+| `ANTHROPIC_API_KEY` / `GROQ_API_KEY` / `GOOGLE_GENERATIVE_AI_API_KEY` / `XAI_API_KEY` / `MISTRAL_API_KEY` / `DEEPSEEK_API_KEY` | no current native in-app path in this codebase | **Not verified in this rollout** |
 
-This means the current AI envs are not "mystery working keys" already deployed behind the scenes. The live app should be treated as needing a fresh, explicit rollout of **your** provider keys.
+This means the app is no longer in the earlier “blank AI config” state. The core native AI path now has real keys loaded, while the slideshow path remains incomplete without `FAL_KEY` and AgentMedia remains off without `AGENT_MEDIA_SSO_KEY`.
 
 ---
 
