@@ -48,9 +48,17 @@
 - `.env.example`
 
 ### Live production env snapshot reviewed
-Checked presence/absence only in `/opt/postiz/live/postiz.env`:
-- Present: `OPENAI_API_KEY`, `ELEVENSLABS_API_KEY`, `TRANSLOADIT_AUTH`, `TRANSLOADIT_SECRET`, `KIEAI_API_KEY`, `CHATBASE_TOKEN`, `AGENT_API_KEY`, `OPENROUTER_API_KEY`, `ANTHROPIC_API_KEY`, `GROQ_API_KEY`, `GOOGLE_GENERATIVE_AI_API_KEY`, `XAI_API_KEY`, `MISTRAL_API_KEY`, `DEEPSEEK_API_KEY`, `TAVILY_API_KEY`
-- Missing: `FAL_KEY`, `AGENT_MEDIA_SSO_KEY`
+Verified two live sources:
+- config file: `/opt/postiz/live/postiz.env`
+- running container env: `docker inspect postiz`
+
+Current verified state:
+- `OPENAI_API_KEY` exists but is **empty** in both the file and the running container
+- the running `postiz` container does **not** currently expose `OPENROUTER_API_KEY`, `ANTHROPIC_API_KEY`, `GROQ_API_KEY`, `GOOGLE_GENERATIVE_AI_API_KEY`, `XAI_API_KEY`, `MISTRAL_API_KEY`, `DEEPSEEK_API_KEY`, `ELEVENSLABS_API_KEY`, `TAVILY_API_KEY`, `KIEAI_API_KEY`, `FAL_KEY`, `TRANSLOADIT_AUTH`, `TRANSLOADIT_SECRET`, `CHATBASE_TOKEN`, `AGENT_API_KEY`, or `AGENT_MEDIA_SSO_KEY`
+
+Interpretation:
+- the AI/provider keys I previously treated as present are **not actually in the active live configuration**
+- as of this verification pass, the live app should be treated as **unconfigured for in-app AI** until your real keys are loaded from your secret source
 
 ---
 
@@ -59,8 +67,9 @@ Checked presence/absence only in `/opt/postiz/live/postiz.env`:
 1. **Postiz is configured by env vars and requires restarts after changes.**
 2. **MCP/CLI/Public API do not require Postiz itself to run your model provider.** They let an external AI client drive Postiz.
 3. **Native in-app AI features are currently provider-coupled in code.** Most of the text/chat/image features are hardwired to OpenAI SDK usage and fixed model names.
-4. **OpenRouter is already available in production as a credential, but the current app code does not consume it.**
-5. **The docs + `.env.example` do not fully enumerate the AI vendor env surface used by the current code.** The repo code currently relies on additional keys like `FAL_KEY`, `ELEVENSLABS_API_KEY`, `TRANSLOADIT_*`, `KIEAI_API_KEY`, `AGENT_MEDIA_SSO_KEY`, `CHATBASE_TOKEN`, and `AGENT_API_KEY`.
+4. **The current live app is not actually wired to working in-app AI credentials yet.** The active container only shows an empty `OPENAI_API_KEY` and no other AI/provider envs.
+5. **Before choosing an architecture, first load your real keys from your secret source into the correct env slots for each gadget.**
+6. **The docs + `.env.example` do not fully enumerate the AI vendor env surface used by the current code.** The repo code relies on additional keys like `FAL_KEY`, `ELEVENSLABS_API_KEY`, `TRANSLOADIT_*`, `KIEAI_API_KEY`, `AGENT_MEDIA_SSO_KEY`, `CHATBASE_TOKEN`, and `AGENT_API_KEY`.
 
 ---
 
@@ -68,18 +77,37 @@ Checked presence/absence only in `/opt/postiz/live/postiz.env`:
 
 | Feature | User-facing surface | Current provider path in code | Required env/config | Current live state |
 |---|---|---|---|---|
-| Composer assistant | Bottom-right helper while editing a post | OpenAI via CopilotKit `OpenAIAdapter(model: gpt-4.1)` | `OPENAI_API_KEY` | Working at config level |
-| `/agents` workspace | Full agent UI at `/agents` | OpenAI + Mastra agent (`openai('gpt-5.2')`) | `OPENAI_API_KEY` + org AI entitlement | Working at config level |
-| Native AI image generation | “AI Img” / image generation UI | OpenAI image API (`chatgpt-image-latest`) | `OPENAI_API_KEY` | Working at config level |
-| Post generation / rewrite / split / prompt creation | Post generator + text helper paths | OpenAI chat models (`gpt-4.1`, `gpt-4o-2024-08-06`) + optional Tavily research | `OPENAI_API_KEY`, optional `TAVILY_API_KEY` | Working at config level |
-| Native AI video: `image-text-slides` | In-app video generator option | OpenAI + FAL + ElevenLabs + Transloadit | `OPENAI_API_KEY`, `FAL_KEY`, `ELEVENSLABS_API_KEY`, `TRANSLOADIT_AUTH`, `TRANSLOADIT_SECRET` | **Disabled** because `FAL_KEY` missing |
-| Native AI video: `veo3` | In-app video generator option | Kie.ai Veo 3 endpoint | `KIEAI_API_KEY` | Working at config level |
-| AgentMedia handoff | Modal -> external UGC product | AgentMedia SSO | `AGENT_MEDIA_SSO_KEY` | **Disabled** |
-| Public `/public/agent` ingestion | External automation hook | OpenAI categorization/classification | `AGENT_API_KEY`, `OPENAI_API_KEY` | Working at config level |
-| Chatbase support AI | Support/chat widget | Chatbase token-based embed | `CHATBASE_TOKEN` | Working at config level |
-| MCP | External AI client control plane | User-supplied model outside Postiz | Postiz API key or OAuth token; no model key required by Postiz for MCP itself | Available if backend path exposed |
-| CLI | External automation shell | User/client side | `POSTIZ_API_URL` + API key or OAuth login | Available |
-| Public API + OAuth apps | External automation/app integrations | User/client side | Postiz API key or OAuth app config | Available |
+| Composer assistant | Bottom-right helper while editing a post | OpenAI via CopilotKit `OpenAIAdapter(model: gpt-4.1)` | `OPENAI_API_KEY` | **Not configured** — active container has `OPENAI_API_KEY` empty |
+| `/agents` workspace | Full agent UI at `/agents` | OpenAI + Mastra agent (`openai('gpt-5.2')`) | `OPENAI_API_KEY` + org AI entitlement | **Not configured** — `OPENAI_API_KEY` empty, entitlement still to be checked after keys are loaded |
+| Native AI image generation | “AI Img” / image generation UI | OpenAI image API (`chatgpt-image-latest`) | `OPENAI_API_KEY` | **Not configured** — `OPENAI_API_KEY` empty |
+| Post generation / rewrite / split / prompt creation | Post generator + text helper paths | OpenAI chat models (`gpt-4.1`, `gpt-4o-2024-08-06`) + optional Tavily research | `OPENAI_API_KEY`, optional `TAVILY_API_KEY` | **Not configured** for core text generation; optional research also **not configured** |
+| Native AI video: `image-text-slides` | In-app video generator option | OpenAI + FAL + ElevenLabs + Transloadit | `OPENAI_API_KEY`, `FAL_KEY`, `ELEVENSLABS_API_KEY`, `TRANSLOADIT_AUTH`, `TRANSLOADIT_SECRET` | **Not configured** — every required key is absent/empty |
+| Native AI video: `veo3` | In-app video generator option | Kie.ai Veo 3 endpoint | `KIEAI_API_KEY` | **Not configured** — `KIEAI_API_KEY` absent |
+| AgentMedia handoff | Modal -> external UGC product | AgentMedia SSO | `AGENT_MEDIA_SSO_KEY` | **Not configured** — SSO key absent |
+| Public `/public/agent` ingestion | External automation hook | OpenAI categorization/classification | `AGENT_API_KEY`, `OPENAI_API_KEY` | **Not configured** — both required envs absent/empty |
+| Chatbase support AI | Support/chat widget | Chatbase token-based embed | `CHATBASE_TOKEN` | **Not configured** — token absent |
+| MCP | External AI client control plane | User-supplied model outside Postiz | Postiz API key or OAuth token; no model key required by Postiz for MCP itself | Available independently of in-app AI keys |
+| CLI | External automation shell | User/client side | `POSTIZ_API_URL` + API key or OAuth login | Available independently of in-app AI keys |
+| Public API + OAuth apps | External automation/app integrations | User/client side | Postiz API key or OAuth app config | Available independently of in-app AI keys |
+
+### Verified live key status (current production)
+
+| Env key | Gadget(s) it affects | Verified live state |
+|---|---|---|
+| `OPENAI_API_KEY` | composer assistant, `/agents`, native image generation, text helpers, public agent | **Present but empty** |
+| `TAVILY_API_KEY` | optional research augmentation | **Absent** |
+| `KIEAI_API_KEY` | native `veo3` video generation | **Absent** |
+| `FAL_KEY` | slideshow video image generation | **Absent** |
+| `ELEVENSLABS_API_KEY` | slideshow video voice generation | **Absent** |
+| `TRANSLOADIT_AUTH` | slideshow video assembly | **Absent** |
+| `TRANSLOADIT_SECRET` | slideshow video assembly | **Absent** |
+| `CHATBASE_TOKEN` | Chatbase support widget | **Absent** |
+| `AGENT_API_KEY` | `/public/agent` ingestion | **Absent** |
+| `AGENT_MEDIA_SSO_KEY` | AgentMedia handoff | **Absent** |
+| `OPENROUTER_API_KEY` | no current native in-app path; future external-agent or custom path | **Absent from live app config** |
+| `ANTHROPIC_API_KEY` / `GROQ_API_KEY` / `GOOGLE_GENERATIVE_AI_API_KEY` / `XAI_API_KEY` / `MISTRAL_API_KEY` / `DEEPSEEK_API_KEY` | no current native in-app path in this codebase | **Absent from live app config** |
+
+This means the current AI envs are not "mystery working keys" already deployed behind the scenes. The live app should be treated as needing a fresh, explicit rollout of **your** provider keys.
 
 ---
 
@@ -97,8 +125,8 @@ Checked presence/absence only in `/opt/postiz/live/postiz.env`:
 
 ### Pros
 - Lowest implementation risk
-- Already configured in production
-- No code changes needed to keep using it
+- Fits the current code with no provider-abstraction rewrite
+- No code changes needed once your real key is loaded
 
 ### Cons
 - No multi-provider failover
@@ -145,7 +173,7 @@ Checked presence/absence only in `/opt/postiz/live/postiz.env`:
 
 ### Pros
 - Single-vendor simplicity
-- Already working in prod
+- Fits the current code path once your real key is installed
 - Lowest engineering effort
 
 ### Cons
@@ -200,7 +228,7 @@ This is a **multi-vendor pipeline**, not a single-provider feature:
 - Highest operational complexity
 - Four external dependencies for one feature
 - More failure points, more rate-limit surfaces, more billing surfaces
-- Currently disabled in production because `FAL_KEY` is missing
+- Currently disabled in production because none of its required keys are loaded yet
 
 ### Recommendation
 - **Only enable if you specifically want slideshow-style videos.**
@@ -219,7 +247,7 @@ This is a **multi-vendor pipeline**, not a single-provider feature:
 ### Pros
 - Simpler than the slideshow pipeline
 - Single provider for a premium video path
-- Already configured in production
+- Lower operational complexity than the multi-vendor slideshow stack
 
 ### Cons
 - Vendor lock-in
@@ -262,7 +290,7 @@ This is a **multi-vendor pipeline**, not a single-provider feature:
 
 ### Pros
 - Separate from core content-generation stack
-- Already configured
+- Optional support AI lane if you intentionally supply a token
 
 ### Cons
 - Separate support AI vendor to manage
@@ -428,16 +456,22 @@ This gives you:
 
 ## Current production gaps to close first
 
-1. **Document the hidden AI env surface**
-   - `.env.example` currently surfaces `OPENAI_API_KEY` but not the full live AI dependency set.
-2. **Decide whether slideshow video is actually a product priority**
-   - if yes, add `FAL_KEY`
-   - if not, leave disabled intentionally and document that Veo3 is the supported video path
-3. **Decide whether AgentMedia is strategic or optional**
-   - if strategic, configure `AGENT_MEDIA_SSO_KEY`
-   - if optional, mark it clearly as separate-product functionality
-4. **Separate “native AI”, “support AI”, and “external AI clients” in product docs**
+1. **Load your real provider keys into the live app.**
+   - the active container currently has no working in-app AI credentials
+   - use your secret source (preferably Bitwarden Secrets Manager / local Bitwarden access, not chat-pasted secrets)
+2. **Document the hidden AI env surface.**
+   - `.env.example` currently does not fully describe the AI dependency set used by the code
+3. **Configure each gadget intentionally rather than assuming one key enables all of AI.**
+   - OpenAI powers: composer assistant, `/agents`, native image generation, text helpers, public agent
+   - Tavily powers: optional web research augmentation
+   - Kie.ai powers: native `veo3`
+   - FAL + ElevenLabs + Transloadit power: `image-text-slides`
+   - Chatbase powers: support widget
+   - AgentMedia SSO powers: AgentMedia handoff only
+4. **Separate “native AI”, “support AI”, and “external AI clients” in product docs.**
    - users should not confuse Chatbase, AgentMedia, composer assistant, `/agents`, MCP, and Public API
+5. **Defer AgentMedia self-host evaluation until the core gadgets are configured.**
+   - based on the current evidence, treat “self-host AgentMedia with your own provider keys” as a future evaluation task/hypothesis, not a current assumption
 
 ---
 
@@ -470,7 +504,7 @@ This gives you:
 - Modify or create: `docs/givebettr/plans/ai-integration-options-and-activation-plan-2026-06-27.md`
 - Optional modify: docs referencing configuration/env setup
 
-**Env keys to consider documenting explicitly:**
+**Env keys to document explicitly:**
 - `OPENAI_API_KEY`
 - `TAVILY_API_KEY`
 - `FAL_KEY`
@@ -487,9 +521,50 @@ This gives you:
 
 ---
 
-### Task 3: Stabilize the baseline native AI stack
+### Task 3: Roll out your real keys across each gadget
 
-**Objective:** Keep the native UI working on the lowest-risk provider set.
+**Objective:** Replace the effectively-empty live AI configuration with your real provider credentials, sourced from your secret manager rather than chat.
+
+**Files / runtime:**
+- Runtime: `/opt/postiz/live/postiz.env`
+- Secret source: Bitwarden Secrets Manager / local Bitwarden access
+- Runtime validation: `docker inspect postiz`
+
+**Key mapping by gadget:**
+- Composer assistant, `/agents`, native image generation, text helpers, public agent:
+  - `OPENAI_API_KEY`
+- Optional research augmentation:
+  - `TAVILY_API_KEY`
+- Native `veo3` video:
+  - `KIEAI_API_KEY`
+- Slideshow `image-text-slides` video:
+  - `FAL_KEY`
+  - `ELEVENSLABS_API_KEY`
+  - `TRANSLOADIT_AUTH`
+  - `TRANSLOADIT_SECRET`
+  - plus `OPENAI_API_KEY`
+- Chatbase support widget:
+  - `CHATBASE_TOKEN`
+- Public `/public/agent` ingestion:
+  - `AGENT_API_KEY`
+- AgentMedia handoff (only if intentionally enabled later):
+  - `AGENT_MEDIA_SSO_KEY`
+
+**Steps:**
+1. Pull the real secrets from your approved secret source.
+2. Write only the keys you want enabled now into `/opt/postiz/live/postiz.env`.
+3. Restart the stack.
+4. Re-check the running container env, not just the file, to confirm the keys actually reached the live process.
+
+**Verification:**
+- `docker inspect postiz` shows the intended keys present and non-empty.
+- No secrets are committed to the repo.
+
+---
+
+### Task 4: Stabilize the baseline native AI stack
+
+**Objective:** Bring up the minimum useful in-app AI set with your own keys.
 
 **Files / runtime:**
 - Runtime: `/opt/postiz/live/postiz.env`
@@ -497,21 +572,20 @@ This gives you:
 - Shared services: `libraries/nestjs-libraries/src/openai/openai.service.ts`
 - Video: `libraries/nestjs-libraries/src/videos/veo3/veo3.ts`
 
-**Steps:**
-1. Keep `OPENAI_API_KEY` configured.
-2. Keep `KIEAI_API_KEY` configured.
-3. Keep `TAVILY_API_KEY` configured only if research augmentation is desired.
-4. Verify composer assistant, `/agents`, native image generation, and Veo3 generation end-to-end.
+**Recommended minimum starting set:**
+1. `OPENAI_API_KEY`
+2. `KIEAI_API_KEY` if you want native video now
+3. `TAVILY_API_KEY` only if research augmentation is desired immediately
 
 **Verification:**
 - Composer assistant responds.
 - `/agents` can send a message.
 - Native image generation succeeds.
-- Veo3 appears in `/media/video-options` and can generate successfully.
+- Veo3 appears in `/media/video-options` and can generate successfully, if `KIEAI_API_KEY` is supplied.
 
 ---
 
-### Task 4: Make a product decision on slideshow video
+### Task 5: Make a product decision on slideshow video
 
 **Objective:** Choose whether `image-text-slides` is supported or intentionally disabled.
 
@@ -519,13 +593,15 @@ This gives you:
 - Runtime: `/opt/postiz/live/postiz.env`
 - Code reference: `libraries/nestjs-libraries/src/videos/images-slides/images.slides.ts`
 
-**Option A — support it**
+**Option A — support it with your own keys**
 - Add/configure `FAL_KEY`
-- Verify ElevenLabs + Transloadit paths still work
+- Add/configure `ELEVENSLABS_API_KEY`
+- Add/configure `TRANSLOADIT_AUTH`
+- Add/configure `TRANSLOADIT_SECRET`
 - Test the full pipeline
 
 **Option B — intentionally disable it**
-- Leave `FAL_KEY` absent
+- Leave those keys absent
 - Document that Veo3 is the supported native video experience
 
 **Recommendation:**
@@ -533,7 +609,7 @@ This gives you:
 
 ---
 
-### Task 5: Make a product decision on AgentMedia
+### Task 6: Make a product decision on AgentMedia
 
 **Objective:** Decide whether AgentMedia is core or optional.
 
@@ -542,21 +618,21 @@ This gives you:
 - Frontend: `apps/frontend/src/components/layout/agent.media.modal.tsx`
 - Backend: `apps/backend/src/api/routes/users.controller.ts`
 
-**Option A — enable it**
+**Option A — enable the hosted handoff**
 - Configure `AGENT_MEDIA_SSO_KEY`
 - Verify SSO handoff opens correctly
 - Document separate pricing/account expectations
 
-**Option B — keep it optional/off**
+**Option B — keep it optional/off for now**
 - Leave it disabled
 - Make sure product copy does not imply it is included in the main subscription
 
 **Recommendation:**
-- Treat AgentMedia as **optional** unless UGC video is central to the product strategy.
+- Treat AgentMedia as **optional** until the core in-app gadgets are working with your own keys.
 
 ---
 
-### Task 6: Stand up the OpenRouter external-agent lane
+### Task 7: Stand up the OpenRouter external-agent lane
 
 **Objective:** Use your OpenRouter account without destabilizing the native app.
 
@@ -578,7 +654,41 @@ This gives you:
 
 ---
 
-### Task 7: Optional engineering spike for native OpenRouter support
+### Task 8: Future evaluation — AgentMedia self-host buildout with your own provider keys
+
+**Objective:** Evaluate later whether AgentMedia can be self-hosted in a way that uses your own AI-provider accounts directly, instead of buying hosted `agent-media.ai` credits.
+
+**Status:**
+- future research / implementation task
+- do **not** block core Postiz gadget rollout on this
+
+**Why this stays later:**
+- the current Postiz app can deliver value sooner by wiring your own keys into its native gadgets first
+- current public AgentMedia materials emphasize hosted credits and bearer-token access
+- you found evidence suggesting the package may bundle provider access at a premium over raw API cost; that hypothesis deserves a dedicated validation pass
+
+**Files / sources to review later:**
+- `https://github.com/gitroomhq/agent-media`
+- `https://raw.githubusercontent.com/gitroomhq/agent-media/main/skills/make-lip-sync/SKILL.md`
+- `https://agent-media.ai/`
+- Postiz integration points:
+  - `apps/frontend/src/components/layout/agent.media.modal.tsx`
+  - `apps/backend/src/api/routes/users.controller.ts`
+
+**Questions to answer later:**
+1. Is there a documented full self-host backend path, or only open client/MCP layers?
+2. Which providers are hard-coded vs swappable?
+3. Can the workflow run entirely on your own provider keys without `agent-media.ai` credits?
+4. If yes, what infra/services are required, and how cleanly can Postiz hand off to that self-hosted build?
+
+**Verification:**
+- A future evaluation ends with either:
+  - a grounded self-host architecture using your keys, or
+  - a clear no-go conclusion explaining why hosted AgentMedia credits remain required.
+
+---
+
+### Task 9: Optional engineering spike for native OpenRouter support
 
 **Objective:** Determine whether native Postiz text/chat surfaces should become provider-abstracted.
 
@@ -595,7 +705,7 @@ This gives you:
 4. Only then consider image API abstraction.
 
 **Recommendation:**
-- Do this only after Tasks 1-6 are complete.
+- Do this only after Tasks 1-7 are complete.
 
 ---
 
@@ -619,16 +729,17 @@ This gives you:
 ## Final recommendation
 
 ## Recommended order of operations
-1. **Keep native in-app AI on OpenAI** for now.
-2. **Use Kie.ai as the primary native video path.**
-3. **Decide intentionally** whether slideshow video is worth the extra vendor stack.
-4. **Decide intentionally** whether AgentMedia is core or optional.
-5. **Use OpenRouter first for external agents over MCP/Public API/CLI.**
-6. Only then decide whether native Postiz text/chat should be refactored to support OpenRouter directly.
+1. **Load your real OpenAI key first** so the core text/image gadgets can come alive.
+2. **Add `KIEAI_API_KEY` next** if you want native Veo3 video.
+3. **Add `TAVILY_API_KEY` only if you want research augmentation now.**
+4. **Decide intentionally** whether slideshow video is worth the extra `FAL` + `ElevenLabs` + `Transloadit` vendor stack.
+5. **Leave AgentMedia optional for now** and revisit self-host feasibility later.
+6. **Use OpenRouter first for external agents over MCP/Public API/CLI.**
+7. Only then decide whether native Postiz text/chat should be refactored to support OpenRouter directly.
 
 ## Best price/performance recommendation
-- **For the app UI today:** OpenAI remains the best price/performance choice because it already fits the code and has the lowest implementation risk.
-- **For experimentation, multi-model access, and future automation:** OpenRouter is the best price/performance layer because it gives you a single gateway to many vendors without changing the native UI first.
+- **For the app UI today:** the cheapest path to working native AI is to wire in only the keys you actually need, starting with `OPENAI_API_KEY`; do not add extra vendors before the core gadgets are validated.
+- **For experimentation, multi-model access, and future automation:** OpenRouter is still the best price/performance layer because it gives you a single gateway to many vendors without changing the native UI first.
 - **For native video:** prefer Kie.ai Veo3 as the supported path; enable the FAL/ElevenLabs/Transloadit slideshow stack only if there is confirmed product demand.
 
 ---
@@ -650,9 +761,10 @@ This gives you:
 ## Safe default if no further decision is made
 
 If nothing else is changed, the safest supported stack is:
-- OpenAI for native text/chat/image features
-- Tavily optional for research
-- Kie.ai for native video
+- no in-app AI should be assumed live until your real keys are loaded
+- `OPENAI_API_KEY` first for native text/chat/image features
+- `TAVILY_API_KEY` only if research augmentation is desired
+- `KIEAI_API_KEY` for native video when you are ready
 - Chatbase optional for support
-- AgentMedia off until intentionally enabled
+- AgentMedia off until intentionally enabled and later evaluated for self-host feasibility
 - OpenRouter reserved for external MCP/API/CLI automations
