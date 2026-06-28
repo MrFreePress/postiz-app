@@ -483,15 +483,18 @@ This gives you:
 
 **Files:**
 - Keep/update: `docs/givebettr/plans/ai-integration-options-and-activation-plan-2026-06-27.md`
+- Keep/update: `docs/givebettr/inventories/ai-key-cheat-sheet-2026-06-27.md`
 - Create later if needed: `docs/givebettr/inventories/ai-feature-config-inventory.md`
 
 **Steps:**
-1. Copy this plan into a durable canonical location if it is later superseded.
-2. Add a small appendix with exact env key names and whether each is documented in `.env.example`.
-3. Cross-link from readiness docs if AI activation becomes a launch dependency.
+1. Keep this plan as the deep technical source of truth.
+2. Keep the cheat sheet as the operator-friendly quick reference for “what key unlocks what.”
+3. Add a small appendix with exact env key names and whether each is documented in `.env.example`.
+4. Cross-link from readiness docs if AI activation becomes a launch dependency.
 
 **Verification:**
 - A maintainer can answer “what uses which provider?” from docs alone.
+- A non-developer operator can answer “which key do I need next?” from docs alone.
 
 ---
 
